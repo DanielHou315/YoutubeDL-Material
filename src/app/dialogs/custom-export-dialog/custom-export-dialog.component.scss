@@ -25,6 +25,35 @@
   }
 }
 
+.folder-name-editor {
+  margin-bottom: 16px;
+
+  .folder-name-input {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .path-preview {
+    font-family: monospace;
+    font-size: 12px;
+  }
+
+  .custom-indicator {
+    margin-left: 8px;
+    color: #1976d2;
+    font-style: italic;
+  }
+
+  .naming-toggles {
+    width: 100%;
+    display: flex;
+
+    mat-button-toggle {
+      flex: 1;
+    }
+  }
+}
+
 .folder-navigation {
   margin-bottom: 16px;
 
@@ -103,24 +132,9 @@
 }
 
 .export-options {
-  h5 {
-    margin: 0 0 12px 0;
-    font-weight: 500;
-  }
-
   mat-checkbox {
     display: block;
     margin-bottom: 8px;
-  }
-
-  .naming-select {
-    width: 100%;
-    margin-top: 8px;
-  }
-
-  .template-input {
-    width: 100%;
-    margin-top: 4px;
   }
 }
 

@@ -761,7 +761,7 @@ exports.exportToFolder = async (video_file_path, info, type) => {
  * @param {boolean} options.includeNfo - Whether to include NFO file
  * @param {boolean} options.useSimpleFilenames - Whether to use simplified filenames
  * @param {string} options.namingConvention - Folder naming convention
- * @param {string} options.customTemplate - Custom template for folder naming
+ * @param {string} options.customFolderName - Custom folder name (used directly when provided)
  * @param {boolean} options.createNewFolder - Whether to create a new folder for this file
  * @returns {Promise<object|null>} - Export info object or null on failure
  */
@@ -777,7 +777,7 @@ exports.exportFileToFolder = async (file, targetFolder, options = {}) => {
             includeNfo = true,
             useSimpleFilenames = false,
             namingConvention = 'original',
-            customTemplate = '',
+            customFolderName = '',
             createNewFolder = true
         } = options;
 
@@ -796,14 +796,19 @@ exports.exportFileToFolder = async (file, targetFolder, options = {}) => {
         // Determine the export folder path
         let exportFolderPath;
         if (createNewFolder) {
-            // Create a new folder based on the video title
-            const videoTitle = file.title || info['title'] || info['fulltitle'] || 'untitled';
-            let folderName = utils.transformFolderName(
-                utils.sanitizeFolderName(videoTitle),
-                namingConvention,
-                customTemplate,
-                info
-            );
+            // Use custom folder name if provided, otherwise generate based on convention
+            let folderName;
+            if (customFolderName) {
+                folderName = utils.sanitizeFolderName(customFolderName);
+            } else {
+                const videoTitle = file.title || info['title'] || info['fulltitle'] || 'untitled';
+                folderName = utils.transformFolderName(
+                    utils.sanitizeFolderName(videoTitle),
+                    namingConvention,
+                    '',
+                    info
+                );
+            }
             exportFolderPath = path.join(exportBasePath, targetFolder, folderName);
         } else {
             // Export directly to the target folder

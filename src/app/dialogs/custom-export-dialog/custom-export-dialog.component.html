@@ -8,6 +8,24 @@
       <span class="file-title">{{file.title}}</span>
     </div>
 
+    <!-- Folder name editor (when creating new folder) -->
+    <div *ngIf="createNewFolder" class="folder-name-editor">
+      <mat-form-field appearance="outline" class="folder-name-input">
+        <mat-label i18n="Folder name label">Folder Name</mat-label>
+        <input matInput [(ngModel)]="folderName" (input)="onFolderNameInput()">
+        <mat-hint>
+          <span class="path-preview">{{getFullExportPath()}}</span>
+          <span *ngIf="isCustomName" class="custom-indicator" i18n="Custom name indicator">(Custom)</span>
+        </mat-hint>
+      </mat-form-field>
+
+      <mat-button-toggle-group [(ngModel)]="namingConvention" (change)="onNamingConventionChange()" class="naming-toggles">
+        <mat-button-toggle *ngFor="let conv of namingConventions" [value]="conv.value">
+          {{conv.label}}
+        </mat-button-toggle>
+      </mat-button-toggle-group>
+    </div>
+
     <!-- Folder navigation -->
     <div class="folder-navigation">
       <div class="navigation-header">
@@ -46,8 +64,6 @@
 
     <!-- Export options -->
     <div class="export-options">
-      <h5 i18n="Export options header">Export Options</h5>
-
       <mat-checkbox [(ngModel)]="createNewFolder" i18n="Create new folder checkbox">
         Create new folder for this file
       </mat-checkbox>
@@ -59,21 +75,6 @@
       <mat-checkbox [(ngModel)]="useSimpleFilenames" i18n="Simple filenames checkbox">
         Use simplified filenames (video.mp4, video.nfo)
       </mat-checkbox>
-
-      <mat-form-field *ngIf="createNewFolder" appearance="outline" class="naming-select">
-        <mat-label i18n="Folder naming convention label">Folder Naming Convention</mat-label>
-        <mat-select [(ngModel)]="namingConvention">
-          <mat-option *ngFor="let conv of namingConventions" [value]="conv.value">
-            {{conv.label}}
-          </mat-option>
-        </mat-select>
-      </mat-form-field>
-
-      <mat-form-field *ngIf="namingConvention === 'custom' && createNewFolder" appearance="outline" class="template-input">
-        <mat-label i18n="Custom template label">Custom Template</mat-label>
-        <input matInput [(ngModel)]="customTemplate" [placeholder]="templatePlaceholder">
-        <mat-hint>{{templateHint}}</mat-hint>
-      </mat-form-field>
     </div>
 
     <!-- Export status -->

@@ -922,7 +922,7 @@ export class PostsService implements CanActivate {
         includeNfo?: boolean;
         useSimpleFilenames?: boolean;
         namingConvention?: string;
-        customTemplate?: string;
+        customFolderName?: string;
         createNewFolder?: boolean;
     } = {}): Observable<any> {
         const body = {

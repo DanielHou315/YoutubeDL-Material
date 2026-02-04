@@ -31,9 +31,12 @@ export class CustomExportDialogComponent implements OnInit {
   // Export options
   includeNfo = true;
   useSimpleFilenames = false;
-  namingConvention = 'original';
-  customTemplate = '';
   createNewFolder = true;
+
+  // Folder naming
+  folderName = '';
+  namingConvention = 'original';
+  isCustomName = false;
 
   // State
   exporting = false;
@@ -42,14 +45,9 @@ export class CustomExportDialogComponent implements OnInit {
 
   namingConventions = [
     { value: 'original', label: $localize`Original` },
-    { value: 'snake_case', label: $localize`Snake Case (my_video_title)` },
-    { value: 'kebab_case', label: $localize`Kebab Case (my-video-title)` },
-    { value: 'custom', label: $localize`Custom Template` }
+    { value: 'snake_case', label: $localize`Snake Case` },
+    { value: 'kebab_case', label: $localize`Kebab Case` }
   ];
-
-  // Template placeholders (escaped to avoid Angular ICU parsing)
-  templatePlaceholder = '{title} - {uploader}';
-  templateHint = 'Placeholders: {title}, {uploader}, {channel}, {upload_date}, {id}, {extractor}';
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: any,
@@ -61,6 +59,52 @@ export class CustomExportDialogComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadFolderTree();
+    this.folderName = this.generateFolderName('original');
+  }
+
+  generateFolderName(convention: string): string {
+    const title = this.file.title || 'Untitled';
+
+    switch (convention) {
+      case 'snake_case':
+        return title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '');
+      case 'kebab_case':
+        return title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+      case 'original':
+      default:
+        return title;
+    }
+  }
+
+  onNamingConventionChange(): void {
+    this.folderName = this.generateFolderName(this.namingConvention);
+    this.isCustomName = false;
+  }
+
+  onFolderNameInput(): void {
+    // Check if the name differs from all conventions
+    const originalName = this.generateFolderName('original');
+    const snakeName = this.generateFolderName('snake_case');
+    const kebabName = this.generateFolderName('kebab_case');
+
+    if (this.folderName === originalName) {
+      this.namingConvention = 'original';
+      this.isCustomName = false;
+    } else if (this.folderName === snakeName) {
+      this.namingConvention = 'snake_case';
+      this.isCustomName = false;
+    } else if (this.folderName === kebabName) {
+      this.namingConvention = 'kebab_case';
+      this.isCustomName = false;
+    } else {
+      this.isCustomName = true;
+    }
   }
 
   loadFolderTree(): void {
@@ -106,6 +150,15 @@ export class CustomExportDialogComponent implements OnInit {
     return current;
   }
 
+  getFullExportPath(): string {
+    if (!this.createNewFolder) {
+      return this.getCurrentFolderDisplay();
+    }
+    const base = this.getCurrentFolderDisplay();
+    const sep = base === '/' ? '' : '/';
+    return `${base}${sep}${this.folderName || '...'}`;
+  }
+
   navigateToFolder(folder: ExportFolder): void {
     this.pathHistory.push(this.currentPath);
     this.currentPath = folder.path;
@@ -141,8 +194,8 @@ export class CustomExportDialogComponent implements OnInit {
     const options = {
       includeNfo: this.includeNfo,
       useSimpleFilenames: this.useSimpleFilenames,
-      namingConvention: this.namingConvention,
-      customTemplate: this.namingConvention === 'custom' ? this.customTemplate : '',
+      namingConvention: this.isCustomName ? 'custom' : this.namingConvention,
+      customFolderName: this.createNewFolder ? this.folderName : '',
       createNewFolder: this.createNewFolder
     };
 
