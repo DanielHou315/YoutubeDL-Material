@@ -195,7 +195,7 @@
                         </mat-form-field>
                     </div>
                     <div class="col-12 mt-3">
-                        <mat-form-field color="accent">
+                        <mat-form-field class="text-field" color="accent">
                             <mat-label><ng-container i18n="Export folder naming label">Folder naming convention</ng-container></mat-label>
                             <mat-select [disabled]="!new_config['Export']['enable_export_folder']" [(ngModel)]="new_config['Export']['export_folder_naming']">
                                 <mat-option value="original"><ng-container i18n="Original folder naming">Original (Video Title)</ng-container></mat-option>
