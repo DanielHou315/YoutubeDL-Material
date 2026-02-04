@@ -389,6 +389,9 @@ exports.downloadQueuedFile = async(download_uid, customDownloadHandler = null) =
                     exports.generateNFOFile(output_json, `${filepath_no_extension}.nfo`);
                 }
 
+                // Export to dedicated folder if enabled
+                await exports.exportToFolder(full_file_path, output_json, type);
+
                 if (options.cropFileSettings) {
                     await utils.cropFile(full_file_path, options.cropFileSettings.cropFileStart, options.cropFileSettings.cropFileEnd, ext);
                 }
@@ -641,4 +644,111 @@ exports.generateNFOFile = (info, output_path) => {
     const doc = create(nfo_obj);
     const xml = doc.end({ prettyPrint: true });
     fs.writeFileSync(output_path, xml);
+}
+
+/**
+ * Exports a downloaded video to a dedicated folder with configurable naming
+ * @param {string} video_file_path - Full path to the downloaded video file
+ * @param {object} info - Video metadata from youtube-dl/yt-dlp
+ * @param {string} type - 'audio' or 'video'
+ * @returns {Promise<object|null>} - Export info object or null if export is disabled
+ */
+exports.exportToFolder = async (video_file_path, info, type) => {
+    const enableExport = config_api.getConfigItem('ytdl_enable_export_folder');
+    if (!enableExport) {
+        return null;
+    }
+
+    try {
+        const exportBasePath = config_api.getConfigItem('ytdl_export_folder_path');
+        const namingConvention = config_api.getConfigItem('ytdl_export_folder_naming');
+        const includeNfo = config_api.getConfigItem('ytdl_export_include_nfo');
+        const customTemplate = config_api.getConfigItem('ytdl_custom_export_folder_template');
+        const useSimpleFilenames = config_api.getConfigItem('ytdl_export_use_simple_filenames');
+
+        // Get the video title for folder naming
+        const videoTitle = info['title'] || info['fulltitle'] || 'untitled';
+
+        // Transform the folder name based on the naming convention
+        let folderName = utils.transformFolderName(
+            utils.sanitizeFolderName(videoTitle),
+            namingConvention,
+            customTemplate,
+            info
+        );
+
+        // Get the original filename from the video path
+        const originalVideoFileName = path.basename(video_file_path);
+        const originalVideoFileNameNoExt = utils.removeFileExtension(originalVideoFileName);
+        const videoExt = path.extname(video_file_path);
+
+        // Determine filenames - either simplified or original
+        let mediaFileName, nfoFileName, thumbnailBaseName;
+        if (useSimpleFilenames) {
+            const simplifiedNames = utils.getSimplifiedFilenames(type);
+            mediaFileName = simplifiedNames.mediaFile;
+            nfoFileName = simplifiedNames.nfoFile;
+            thumbnailBaseName = simplifiedNames.thumbnailBase;
+        } else {
+            mediaFileName = originalVideoFileName;
+            nfoFileName = `${originalVideoFileNameNoExt}.nfo`;
+            thumbnailBaseName = originalVideoFileNameNoExt;
+        }
+
+        // Validate and adjust path length for cross-platform compatibility
+        const pathValidation = utils.validatePathLength(exportBasePath, folderName, mediaFileName);
+        if (pathValidation.warnings.length > 0) {
+            for (const warning of pathValidation.warnings) {
+                logger.warn(`Export path adjustment: ${warning}`);
+            }
+            folderName = pathValidation.folderName;
+            mediaFileName = pathValidation.fileName;
+            // Update NFO and thumbnail names if media filename changed
+            if (!useSimpleFilenames && mediaFileName !== originalVideoFileName) {
+                const adjustedNameNoExt = utils.removeFileExtension(mediaFileName);
+                nfoFileName = `${adjustedNameNoExt}.nfo`;
+                thumbnailBaseName = adjustedNameNoExt;
+            }
+        }
+
+        // Create the export folder path
+        const exportFolderPath = path.join(exportBasePath, folderName);
+
+        // Ensure the export folder exists
+        await fs.ensureDir(exportFolderPath);
+
+        // Copy the video file
+        const exportedVideoPath = path.join(exportFolderPath, mediaFileName);
+        await fs.copy(video_file_path, exportedVideoPath);
+        logger.info(`Exported video to: ${exportedVideoPath}`);
+
+        // Generate and export NFO file if enabled
+        let exportedNfoPath = null;
+        if (includeNfo) {
+            exportedNfoPath = path.join(exportFolderPath, nfoFileName);
+            exports.generateNFOFile(info, exportedNfoPath);
+            logger.info(`Exported NFO to: ${exportedNfoPath}`);
+        }
+
+        // Also copy thumbnail if it exists
+        const thumbnailPath = utils.getDownloadedThumbnail(video_file_path);
+        let exportedThumbnailPath = null;
+        if (thumbnailPath) {
+            const thumbnailExt = path.extname(thumbnailPath);
+            exportedThumbnailPath = path.join(exportFolderPath, `${thumbnailBaseName}${thumbnailExt}`);
+            await fs.copy(thumbnailPath, exportedThumbnailPath);
+            logger.info(`Exported thumbnail to: ${exportedThumbnailPath}`);
+        }
+
+        return {
+            folderPath: exportFolderPath,
+            videoPath: exportedVideoPath,
+            nfoPath: exportedNfoPath,
+            thumbnailPath: exportedThumbnailPath
+        };
+    } catch (err) {
+        logger.error(`Failed to export video to folder: ${err.message}`);
+        logger.error(err.stack);
+        return null;
+    }
 }

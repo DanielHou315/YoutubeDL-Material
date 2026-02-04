@@ -184,6 +184,48 @@
             <div *ngIf="new_config" class="container-fluid">
                 <div class="row">
                     <div class="col-12 mt-3">
+                        <h6 i18n="Export settings">Export to Folder</h6>
+                        <mat-checkbox color="accent" [(ngModel)]="new_config['Export']['enable_export_folder']"><ng-container i18n="Enable export folder setting">Enable export to dedicated folder</ng-container></mat-checkbox>
+                    </div>
+                    <div class="col-12 mt-2">
+                        <mat-form-field class="text-field" color="accent">
+                            <mat-label i18n="Export folder path">Export folder path</mat-label>
+                            <input [disabled]="!new_config['Export']['enable_export_folder']" [(ngModel)]="new_config['Export']['export_folder_path']" matInput>
+                            <mat-hint><ng-container i18n="Export folder path hint">Base path for exported files. Relative to YTDL-Material's root folder.</ng-container></mat-hint>
+                        </mat-form-field>
+                    </div>
+                    <div class="col-12 mt-3">
+                        <mat-form-field color="accent">
+                            <mat-label><ng-container i18n="Export folder naming label">Folder naming convention</ng-container></mat-label>
+                            <mat-select [disabled]="!new_config['Export']['enable_export_folder']" [(ngModel)]="new_config['Export']['export_folder_naming']">
+                                <mat-option value="original"><ng-container i18n="Original folder naming">Original (Video Title)</ng-container></mat-option>
+                                <mat-option value="underscored"><ng-container i18n="Underscored folder naming">Underscored (Video_Title)</ng-container></mat-option>
+                                <mat-option value="snake_case"><ng-container i18n="Snake case folder naming">Snake Case (video_title)</ng-container></mat-option>
+                                <mat-option value="kebab_case"><ng-container i18n="Kebab case folder naming">Kebab Case (video-title)</ng-container></mat-option>
+                                <mat-option value="custom"><ng-container i18n="Custom folder naming">Custom Template</ng-container></mat-option>
+                            </mat-select>
+                            <mat-hint><ng-container i18n="Folder naming hint">How the export folder should be named based on video title.</ng-container></mat-hint>
+                        </mat-form-field>
+                    </div>
+                    <div class="col-12 mt-3" *ngIf="new_config['Export']['export_folder_naming'] === 'custom'">
+                        <mat-form-field class="text-field" color="accent">
+                            <mat-label>Custom folder template</mat-label>
+                            <input [disabled]="!new_config['Export']['enable_export_folder']" [(ngModel)]="new_config['Export']['custom_export_folder_template']" matInput placeholder="&#123;uploader&#125; - &#123;title&#125;">
+                            <mat-hint>Use placeholders: &#123;title&#125;, &#123;uploader&#125;, &#123;channel&#125;, &#123;upload_date&#125;, &#123;id&#125;, &#123;extractor&#125;</mat-hint>
+                        </mat-form-field>
+                    </div>
+                    <div class="col-12 mt-2">
+                        <mat-checkbox color="accent" [disabled]="!new_config['Export']['enable_export_folder']" [(ngModel)]="new_config['Export']['export_include_nfo']"><ng-container i18n="Include NFO file setting">Include NFO file in export</ng-container></mat-checkbox>
+                    </div>
+                    <div class="col-12 mt-2 mb-3">
+                        <mat-checkbox color="accent" [disabled]="!new_config['Export']['enable_export_folder']" [(ngModel)]="new_config['Export']['export_use_simple_filenames']" matTooltip="Use 'video.mp4' and 'video.nfo' instead of original filenames for shorter total paths" i18n-matTooltip="Use simple filenames tooltip"><ng-container i18n="Use simple filenames setting">Use simple filenames (video.mp4, video.nfo)</ng-container></mat-checkbox>
+                    </div>
+                </div>
+            </div>
+            <mat-divider></mat-divider>
+            <div *ngIf="new_config" class="container-fluid">
+                <div class="row">
+                    <div class="col-12 mt-3">
                         <button (click)="killAllDownloads()" mat-stroked-button color="warn"><ng-container i18n="Kill all downloads button">Kill all downloads</ng-container></button>
                     </div>
                 </div>

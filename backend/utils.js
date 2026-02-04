@@ -12,6 +12,338 @@ const CONSTS = require('./consts');
 
 const is_windows = process.platform === 'win32';
 
+// ============================================================================
+// CROSS-PLATFORM FILE/FOLDER NAME SANITIZATION
+// ============================================================================
+//
+// Platform-specific restrictions:
+//
+// WINDOWS:
+//   - Banned characters: \ / : * ? " < > |
+//   - Control characters: 0x00-0x1F
+//   - Reserved names: CON, PRN, AUX, NUL, COM1-COM9, LPT1-LPT9 (case-insensitive)
+//   - Names cannot end with space or period
+//   - MAX_PATH: 260 chars (including drive letter and null terminator)
+//   - Max filename: 255 chars
+//
+// MACOS:
+//   - Banned characters: : / (null byte)
+//   - HFS+ has issues with certain Unicode normalization
+//   - PATH_MAX: 1024 chars
+//   - Max filename: 255 bytes (UTF-8, so fewer chars for multibyte)
+//
+// LINUX:
+//   - Banned characters: / (null byte)
+//   - PATH_MAX: 4096 chars (typically)
+//   - Max filename: 255 bytes
+//
+// We use the most restrictive rules to ensure cross-platform compatibility.
+// ============================================================================
+
+// Characters banned on any platform (union of all banned chars)
+const BANNED_CHARS = /[\\/:*?"<>|\x00-\x1f\x7f]/g;
+
+// Windows reserved device names (case-insensitive)
+const WINDOWS_RESERVED_NAMES = new Set([
+    'con', 'prn', 'aux', 'nul',
+    'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
+    'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
+]);
+
+// Path length limits (using half of minimum to be safe)
+// Windows MIN = 260, macOS = 1024, Linux = 4096
+// Half of Windows: 130 chars for combined path
+const MAX_TOTAL_PATH_LENGTH = 130;
+
+// Filename limits: all platforms support 255 bytes
+// Using half: 127 chars (conservative for UTF-8 multibyte chars)
+const MAX_FILENAME_LENGTH = 127;
+const MAX_FOLDER_NAME_LENGTH = 127;
+
+// Character replacements for common problematic characters
+const CHAR_REPLACEMENTS = {
+    '\\': '-',
+    '/': '-',
+    ':': '-',
+    '*': '_',
+    '?': '',
+    '"': "'",
+    '<': '(',
+    '>': ')',
+    '|': '-',
+    '\t': ' ',
+    '\n': ' ',
+    '\r': ' ',
+};
+
+/**
+ * Comprehensive filename/folder name sanitizer for cross-platform compatibility
+ *
+ * @param {string} name - The original name to sanitize
+ * @param {object} options - Sanitization options
+ * @param {number} options.maxLength - Maximum length (default: MAX_FOLDER_NAME_LENGTH)
+ * @param {string} options.replacement - Character to use for banned chars (default: '_')
+ * @param {boolean} options.preserveCase - Whether to preserve original case (default: true)
+ * @param {boolean} options.collapseReplacements - Collapse multiple replacements (default: true)
+ * @param {string} options.fallback - Fallback name if result is empty (default: 'untitled')
+ * @returns {string} - A sanitized name safe for all platforms
+ */
+exports.sanitizeName = (name, options = {}) => {
+    const {
+        maxLength = MAX_FOLDER_NAME_LENGTH,
+        replacement = '_',
+        preserveCase = true,
+        collapseReplacements = true,
+        fallback = 'untitled'
+    } = options;
+
+    // Handle null/undefined/non-string input
+    if (!name || typeof name !== 'string') {
+        return fallback;
+    }
+
+    // Normalize Unicode to NFC form (composed form)
+    // This helps with cross-platform consistency, especially macOS HFS+
+    let sanitized = name.normalize('NFC');
+
+    // Apply character replacements for common problematic characters
+    for (const [char, repl] of Object.entries(CHAR_REPLACEMENTS)) {
+        sanitized = sanitized.split(char).join(repl);
+    }
+
+    // Replace any remaining banned characters
+    sanitized = sanitized.replace(BANNED_CHARS, replacement);
+
+    // Remove leading/trailing whitespace
+    sanitized = sanitized.trim();
+
+    // Remove leading/trailing dots (Windows issue)
+    sanitized = sanitized.replace(/^\.+|\.+$/g, '');
+
+    // Collapse multiple consecutive replacement characters
+    if (collapseReplacements && replacement) {
+        const escReplacement = replacement.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        sanitized = sanitized.replace(new RegExp(`${escReplacement}+`, 'g'), replacement);
+    }
+
+    // Collapse multiple consecutive spaces
+    sanitized = sanitized.replace(/\s+/g, ' ');
+
+    // Handle case
+    if (!preserveCase) {
+        sanitized = sanitized.toLowerCase();
+    }
+
+    // Check for Windows reserved names
+    const baseName = sanitized.split('.')[0].toLowerCase();
+    if (WINDOWS_RESERVED_NAMES.has(baseName)) {
+        sanitized = `_${sanitized}`;
+    }
+
+    // Truncate to max length, but try to break at word boundaries
+    if (sanitized.length > maxLength) {
+        sanitized = exports.truncateAtWordBoundary(sanitized, maxLength);
+    }
+
+    // Remove any trailing replacement char or space after truncation
+    sanitized = sanitized.replace(/[\s_\-]+$/, '');
+
+    // Final check: ensure we have something valid
+    if (!sanitized || sanitized.length === 0 || /^[\s._\-]+$/.test(sanitized)) {
+        return fallback;
+    }
+
+    return sanitized;
+};
+
+/**
+ * Truncates a string at a word boundary if possible
+ *
+ * @param {string} str - String to truncate
+ * @param {number} maxLength - Maximum length
+ * @returns {string} - Truncated string
+ */
+exports.truncateAtWordBoundary = (str, maxLength) => {
+    if (str.length <= maxLength) return str;
+
+    // Try to find a good break point (space, hyphen, underscore)
+    let truncated = str.substring(0, maxLength);
+    const lastSpace = truncated.lastIndexOf(' ');
+    const lastHyphen = truncated.lastIndexOf('-');
+    const lastUnderscore = truncated.lastIndexOf('_');
+
+    const breakPoint = Math.max(lastSpace, lastHyphen, lastUnderscore);
+
+    // Only use break point if it's reasonably far into the string (at least 60%)
+    if (breakPoint > maxLength * 0.6) {
+        truncated = truncated.substring(0, breakPoint);
+    }
+
+    return truncated;
+};
+
+/**
+ * Validates and adjusts path length for cross-platform compatibility
+ *
+ * @param {string} basePath - The base export path
+ * @param {string} folderName - The folder name
+ * @param {string} fileName - The filename
+ * @returns {object} - Adjusted names and validation info
+ */
+exports.validatePathLength = (basePath, folderName, fileName) => {
+    const separator = path.sep;
+    const totalLength = basePath.length + 1 + folderName.length + 1 + fileName.length;
+
+    const result = {
+        isValid: true,
+        originalTotal: totalLength,
+        adjustedTotal: totalLength,
+        folderName: folderName,
+        fileName: fileName,
+        warnings: []
+    };
+
+    // Check if total path exceeds limit
+    if (totalLength > MAX_TOTAL_PATH_LENGTH) {
+        result.warnings.push(`Path length (${totalLength}) exceeds safe limit (${MAX_TOTAL_PATH_LENGTH})`);
+
+        // Calculate how much we need to trim
+        const excess = totalLength - MAX_TOTAL_PATH_LENGTH;
+        const basePathFixed = basePath.length + 2; // base path + 2 separators
+        const availableForNames = MAX_TOTAL_PATH_LENGTH - basePathFixed;
+
+        // Split available space: 60% for folder, 40% for filename
+        const maxFolderLen = Math.floor(availableForNames * 0.6);
+        const maxFileLen = availableForNames - maxFolderLen;
+
+        if (folderName.length > maxFolderLen) {
+            result.folderName = exports.truncateAtWordBoundary(folderName, maxFolderLen);
+            result.warnings.push(`Folder name truncated from ${folderName.length} to ${result.folderName.length} chars`);
+        }
+
+        if (fileName.length > maxFileLen) {
+            // For filename, preserve extension
+            const ext = path.extname(fileName);
+            const nameWithoutExt = fileName.slice(0, -ext.length);
+            const maxNameLen = maxFileLen - ext.length;
+
+            if (maxNameLen > 10) {
+                result.fileName = exports.truncateAtWordBoundary(nameWithoutExt, maxNameLen) + ext;
+            } else {
+                // If we can't fit the name reasonably, use "video" + ext
+                result.fileName = 'video' + ext;
+            }
+            result.warnings.push(`Filename truncated from ${fileName.length} to ${result.fileName.length} chars`);
+        }
+
+        result.adjustedTotal = basePath.length + 1 + result.folderName.length + 1 + result.fileName.length;
+        result.isValid = result.adjustedTotal <= MAX_TOTAL_PATH_LENGTH;
+    }
+
+    return result;
+};
+
+/**
+ * Legacy function for backwards compatibility
+ * @deprecated Use sanitizeName() instead
+ */
+exports.sanitizeFolderName = (name) => {
+    return exports.sanitizeName(name, {
+        maxLength: MAX_FOLDER_NAME_LENGTH,
+        replacement: '_',
+        preserveCase: true
+    });
+};
+
+/**
+ * Transforms a folder name according to the specified naming convention
+ *
+ * @param {string} name - The original name (will be sanitized)
+ * @param {string} convention - The naming convention: 'original', 'underscored', 'snake_case', 'kebab_case', 'custom'
+ * @param {string} customTemplate - Custom template string (only used when convention is 'custom')
+ * @param {object} metadata - Video metadata for template replacement
+ * @returns {string} - The transformed and sanitized folder name
+ */
+exports.transformFolderName = (name, convention, customTemplate = '', metadata = {}) => {
+    // First, do a basic sanitization to remove dangerous chars but keep the structure
+    let result = exports.sanitizeName(name, {
+        maxLength: 500, // Allow longer initially, we'll truncate later
+        replacement: '_',
+        preserveCase: true,
+        collapseReplacements: false // Don't collapse yet
+    });
+
+    switch (convention) {
+        case 'underscored':
+            // Replace spaces with underscores
+            result = result.replace(/\s+/g, '_');
+            break;
+        case 'snake_case':
+            // Convert to snake_case: lowercase with underscores
+            result = result
+                .replace(/\s+/g, '_')
+                .replace(/([a-z])([A-Z])/g, '$1_$2')
+                .replace(/-+/g, '_')
+                .toLowerCase();
+            break;
+        case 'kebab_case':
+            // Convert to kebab-case: lowercase with hyphens
+            result = result
+                .replace(/\s+/g, '-')
+                .replace(/([a-z])([A-Z])/g, '$1-$2')
+                .replace(/_+/g, '-')
+                .toLowerCase();
+            break;
+        case 'custom':
+            // Use custom template with placeholder replacements
+            result = customTemplate || result;
+            if (metadata) {
+                const safeName = exports.sanitizeName(name, { maxLength: 200 });
+                result = result
+                    .replace(/\{title\}/gi, safeName)
+                    .replace(/\{uploader\}/gi, exports.sanitizeName(metadata.uploader || 'unknown', { maxLength: 50 }))
+                    .replace(/\{channel\}/gi, exports.sanitizeName(metadata.channel || metadata.uploader || 'unknown', { maxLength: 50 }))
+                    .replace(/\{upload_date\}/gi, metadata.upload_date || 'unknown')
+                    .replace(/\{id\}/gi, metadata.id || 'unknown')
+                    .replace(/\{extractor\}/gi, metadata.extractor || 'unknown');
+            }
+            break;
+        case 'original':
+        default:
+            // Keep original with sanitization
+            break;
+    }
+
+    // Collapse repeated underscores/hyphens based on convention
+    if (convention === 'snake_case' || convention === 'underscored') {
+        result = result.replace(/_+/g, '_');
+    } else if (convention === 'kebab_case') {
+        result = result.replace(/-+/g, '-');
+    }
+
+    // Final sanitization pass with proper length limit
+    return exports.sanitizeName(result, {
+        maxLength: MAX_FOLDER_NAME_LENGTH,
+        replacement: convention === 'kebab_case' ? '-' : '_',
+        preserveCase: convention !== 'snake_case' && convention !== 'kebab_case'
+    });
+};
+
+/**
+ * Generates a simplified filename for shorter paths
+ *
+ * @param {string} type - 'video' or 'audio'
+ * @returns {object} - Object with video and nfo filenames
+ */
+exports.getSimplifiedFilenames = (type) => {
+    const ext = type === 'audio' ? '.mp3' : '.mp4';
+    return {
+        mediaFile: `video${ext}`,
+        nfoFile: 'video.nfo',
+        thumbnailBase: 'video' // extension added by caller
+    };
+};
+
 // replaces .webm with appropriate extension
 exports.getTrueFileName = (unfixed_path, type, force_ext = null) => {
     let fixed_path = unfixed_path;

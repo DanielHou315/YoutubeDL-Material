@@ -279,6 +279,14 @@ const DEFAULT_CONFIG = {
         "use_cookies": false,
         "jwt_expiration": 86400,
         "logger_level": "info"
+      },
+      "Export": {
+        "enable_export_folder": false,
+        "export_folder_path": "exports/",
+        "export_folder_naming": "original",
+        "export_include_nfo": true,
+        "custom_export_folder_template": "",
+        "export_use_simple_filenames": false
       }
     }
   }

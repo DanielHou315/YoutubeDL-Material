@@ -1,0 +1,16 @@
+version: "2"
+services:
+    ytdl-material-test:
+        build: .
+        container_name: ytdl-material-export-test
+        environment:
+            ytdl_use_local_db: 'true'
+            write_ytdl_config: 'true'
+        restart: unless-stopped
+        volumes:
+            - ./test-appdata:/app/appdata
+            - ./test-audio:/app/audio
+            - ./test-video:/app/video
+            - ./test-exports:/app/exports
+        ports:
+            - "17443:17442"
