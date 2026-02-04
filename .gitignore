@@ -76,3 +76,12 @@ audio/
 video/
 subscriptions/
 users/
+
+# Claude Code
+.claude/
+
+# Docker test outputs
+test-appdata/
+test-audio/
+test-video/
+test-exports/
