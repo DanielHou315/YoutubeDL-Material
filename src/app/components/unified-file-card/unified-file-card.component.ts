@@ -1,6 +1,7 @@
 import { Component, OnInit, Input, Output, EventEmitter, ViewChild } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { VideoInfoDialogComponent } from 'app/dialogs/video-info-dialog/video-info-dialog.component';
+import { CustomExportDialogComponent } from 'app/dialogs/custom-export-dialog/custom-export-dialog.component';
 import { MatMenuTrigger } from '@angular/material/menu';
 import { registerLocaleData } from '@angular/common';
 import localeGB from '@angular/common/locales/en-GB';
@@ -50,6 +51,7 @@ export class UnifiedFileCardComponent implements OnInit {
   @Input() baseStreamPath = null;
   @Input() jwtString = null;
   @Input() availablePlaylists = null;
+  @Input() enableExport = false;
   @Output() goToFile = new EventEmitter<any>();
   @Output() toggleFavorite = new EventEmitter<DatabaseFile>();
   @Output() goToSubscription = new EventEmitter<any>();
@@ -162,6 +164,15 @@ export class UnifiedFileCardComponent implements OnInit {
 
   emitToggleFavorite() {
     this.toggleFavorite.emit(this.file_obj);
+  }
+
+  openExportDialog() {
+    this.dialog.open(CustomExportDialogComponent, {
+      data: {
+        file: this.file_obj
+      },
+      minWidth: '450px'
+    });
   }
 
 }

@@ -340,7 +340,7 @@ exports.getSimplifiedFilenames = (type) => {
     return {
         mediaFile: `video${ext}`,
         nfoFile: 'video.nfo',
-        thumbnailBase: 'video' // extension added by caller
+        thumbnailBase: 'video - poster' // extension added by caller
     };
 };
 
@@ -853,6 +853,60 @@ exports.getDirectoriesInDirectory = async (basePath) => {
             .filter((file) => file.isDirectory())
             .map((file) => path.join(basePath, file.name));
     } catch (err) {
+        return [];
+    }
+}
+
+/**
+ * Gets list of folders in the export directory with symlink detection
+ * @param {string} basePath - The base export path
+ * @param {string} subPath - Optional subpath relative to basePath
+ * @returns {Promise<Array>} - Array of folder objects with name, path, and isSymlink
+ */
+exports.getExportFolders = async (basePath, subPath = '') => {
+    try {
+        const fullPath = subPath ? path.join(basePath, subPath) : basePath;
+
+        // Ensure the directory exists
+        if (!(await fs.pathExists(fullPath))) {
+            return [];
+        }
+
+        const entries = await fs.readdir(fullPath, { withFileTypes: true });
+        const folders = [];
+
+        for (const entry of entries) {
+            // Check if it's a directory or a symlink pointing to a directory
+            const entryPath = path.join(fullPath, entry.name);
+            let isDirectory = entry.isDirectory();
+            let isSymlink = entry.isSymbolicLink();
+
+            if (isSymlink) {
+                try {
+                    const stat = await fs.stat(entryPath);
+                    isDirectory = stat.isDirectory();
+                } catch (err) {
+                    // Broken symlink, skip it
+                    continue;
+                }
+            }
+
+            if (isDirectory) {
+                folders.push({
+                    name: entry.name,
+                    path: subPath ? path.join(subPath, entry.name) : entry.name,
+                    fullPath: entryPath,
+                    isSymlink: isSymlink
+                });
+            }
+        }
+
+        // Sort folders alphabetically
+        folders.sort((a, b) => a.name.localeCompare(b.name));
+
+        return folders;
+    } catch (err) {
+        logger.error(`Failed to get export folders: ${err.message}`);
         return [];
     }
 }

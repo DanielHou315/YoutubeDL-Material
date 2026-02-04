@@ -908,6 +908,31 @@ export class PostsService implements CanActivate {
                                                                     this.httpOptions);
     }
 
+    // export folder management
+
+    getExportFolders(subPath: string = ''): Observable<any> {
+        let params = this.httpOptions.params;
+        if (subPath) {
+            params = params.set('subPath', subPath);
+        }
+        return this.http.get(this.path + 'getExportFolders', { params });
+    }
+
+    exportFile(file_uid: string, targetFolder: string, options: {
+        includeNfo?: boolean;
+        useSimpleFilenames?: boolean;
+        namingConvention?: string;
+        customTemplate?: string;
+        createNewFolder?: boolean;
+    } = {}): Observable<any> {
+        const body = {
+            file_uid: file_uid,
+            targetFolder: targetFolder,
+            options: options
+        };
+        return this.http.post(this.path + 'exportFile', body, this.httpOptions);
+    }
+
     public openSnackBar(message: string, action = ''): void {
         this.snackBar.open(message, action, {
           duration: 2000,

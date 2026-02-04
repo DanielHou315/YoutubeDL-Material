@@ -1709,6 +1709,55 @@ app.post('/api/cancelDownload', optionalJwt, async (req, res) => {
     res.send({success: success});
 });
 
+// export folder management
+
+app.get('/api/getExportFolders', optionalJwt, async (req, res) => {
+    const exportBasePath = config_api.getConfigItem('ytdl_export_folder_path');
+    const enableExport = config_api.getConfigItem('ytdl_enable_export_folder');
+
+    if (!enableExport) {
+        res.send({success: false, error: 'Export feature is disabled', folders: []});
+        return;
+    }
+
+    if (!exportBasePath) {
+        res.send({success: false, error: 'Export folder path is not configured', folders: []});
+        return;
+    }
+
+    const subPath = req.query.subPath || '';
+    const folders = await utils.getExportFolders(exportBasePath, subPath);
+
+    res.send({
+        success: true,
+        folders: folders,
+        currentPath: subPath,
+        basePath: exportBasePath
+    });
+});
+
+app.post('/api/exportFile', optionalJwt, async (req, res) => {
+    const file_uid = req.body.file_uid;
+    const targetFolder = req.body.targetFolder || '';
+    const options = req.body.options || {};
+
+    const enableExport = config_api.getConfigItem('ytdl_enable_export_folder');
+    if (!enableExport) {
+        res.send({success: false, error: 'Export feature is disabled'});
+        return;
+    }
+
+    // Get the file from the database
+    const file = await db_api.getRecord('files', {uid: file_uid});
+    if (!file) {
+        res.send({success: false, error: 'File not found'});
+        return;
+    }
+
+    const result = await downloader_api.exportFileToFolder(file, targetFolder, options);
+    res.send(result || {success: false, error: 'Export failed'});
+});
+
 // tasks
 
 app.post('/api/getTasks', optionalJwt, async (req, res) => {

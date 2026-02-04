@@ -692,7 +692,7 @@ exports.exportToFolder = async (video_file_path, info, type) => {
         } else {
             mediaFileName = originalVideoFileName;
             nfoFileName = `${originalVideoFileNameNoExt}.nfo`;
-            thumbnailBaseName = originalVideoFileNameNoExt;
+            thumbnailBaseName = `${originalVideoFileNameNoExt} - poster`;
         }
 
         // Validate and adjust path length for cross-platform compatibility
@@ -750,5 +750,134 @@ exports.exportToFolder = async (video_file_path, info, type) => {
         logger.error(`Failed to export video to folder: ${err.message}`);
         logger.error(err.stack);
         return null;
+    }
+}
+
+/**
+ * Exports an existing file to a specific folder with custom options
+ * @param {object} file - The file object from the database
+ * @param {string} targetFolder - The target folder path relative to export base
+ * @param {object} options - Export options
+ * @param {boolean} options.includeNfo - Whether to include NFO file
+ * @param {boolean} options.useSimpleFilenames - Whether to use simplified filenames
+ * @param {string} options.namingConvention - Folder naming convention
+ * @param {string} options.customTemplate - Custom template for folder naming
+ * @param {boolean} options.createNewFolder - Whether to create a new folder for this file
+ * @returns {Promise<object|null>} - Export info object or null on failure
+ */
+exports.exportFileToFolder = async (file, targetFolder, options = {}) => {
+    try {
+        const exportBasePath = config_api.getConfigItem('ytdl_export_folder_path');
+        if (!exportBasePath) {
+            logger.error('Export folder path is not configured');
+            return null;
+        }
+
+        const {
+            includeNfo = true,
+            useSimpleFilenames = false,
+            namingConvention = 'original',
+            customTemplate = '',
+            createNewFolder = true
+        } = options;
+
+        const filePath = file.path;
+        const type = file.isAudio ? 'audio' : 'video';
+
+        // Check if the source file exists
+        if (!fs.existsSync(filePath)) {
+            logger.error(`Source file does not exist: ${filePath}`);
+            return null;
+        }
+
+        // Get file info from JSON
+        const info = utils.getJSON(filePath, type) || {};
+
+        // Determine the export folder path
+        let exportFolderPath;
+        if (createNewFolder) {
+            // Create a new folder based on the video title
+            const videoTitle = file.title || info['title'] || info['fulltitle'] || 'untitled';
+            let folderName = utils.transformFolderName(
+                utils.sanitizeFolderName(videoTitle),
+                namingConvention,
+                customTemplate,
+                info
+            );
+            exportFolderPath = path.join(exportBasePath, targetFolder, folderName);
+        } else {
+            // Export directly to the target folder
+            exportFolderPath = path.join(exportBasePath, targetFolder);
+        }
+
+        // Get the original filename
+        const originalFileName = path.basename(filePath);
+        const originalFileNameNoExt = utils.removeFileExtension(originalFileName);
+        const fileExt = path.extname(filePath);
+
+        // Determine filenames
+        let mediaFileName, nfoFileName, thumbnailBaseName;
+        if (useSimpleFilenames) {
+            const simplifiedNames = utils.getSimplifiedFilenames(type);
+            mediaFileName = simplifiedNames.mediaFile;
+            nfoFileName = simplifiedNames.nfoFile;
+            thumbnailBaseName = simplifiedNames.thumbnailBase;
+        } else {
+            mediaFileName = originalFileName;
+            nfoFileName = `${originalFileNameNoExt}.nfo`;
+            thumbnailBaseName = `${originalFileNameNoExt} - poster`;
+        }
+
+        // Validate and adjust path length
+        const pathValidation = utils.validatePathLength(exportBasePath, targetFolder, mediaFileName);
+        if (pathValidation.warnings.length > 0) {
+            for (const warning of pathValidation.warnings) {
+                logger.warn(`Export path adjustment: ${warning}`);
+            }
+            mediaFileName = pathValidation.fileName;
+            if (!useSimpleFilenames && mediaFileName !== originalFileName) {
+                const adjustedNameNoExt = utils.removeFileExtension(mediaFileName);
+                nfoFileName = `${adjustedNameNoExt}.nfo`;
+                thumbnailBaseName = `${adjustedNameNoExt} - poster`;
+            }
+        }
+
+        // Ensure the export folder exists
+        await fs.ensureDir(exportFolderPath);
+
+        // Copy the media file
+        const exportedMediaPath = path.join(exportFolderPath, mediaFileName);
+        await fs.copy(filePath, exportedMediaPath);
+        logger.info(`Exported file to: ${exportedMediaPath}`);
+
+        // Generate and export NFO file if enabled
+        let exportedNfoPath = null;
+        if (includeNfo && Object.keys(info).length > 0) {
+            exportedNfoPath = path.join(exportFolderPath, nfoFileName);
+            exports.generateNFOFile(info, exportedNfoPath);
+            logger.info(`Exported NFO to: ${exportedNfoPath}`);
+        }
+
+        // Copy thumbnail if it exists
+        const thumbnailPath = utils.getDownloadedThumbnail(filePath);
+        let exportedThumbnailPath = null;
+        if (thumbnailPath) {
+            const thumbnailExt = path.extname(thumbnailPath);
+            exportedThumbnailPath = path.join(exportFolderPath, `${thumbnailBaseName}${thumbnailExt}`);
+            await fs.copy(thumbnailPath, exportedThumbnailPath);
+            logger.info(`Exported thumbnail to: ${exportedThumbnailPath}`);
+        }
+
+        return {
+            success: true,
+            folderPath: exportFolderPath,
+            mediaPath: exportedMediaPath,
+            nfoPath: exportedNfoPath,
+            thumbnailPath: exportedThumbnailPath
+        };
+    } catch (err) {
+        logger.error(`Failed to export file to folder: ${err.message}`);
+        logger.error(err.stack);
+        return { success: false, error: err.message };
     }
 }

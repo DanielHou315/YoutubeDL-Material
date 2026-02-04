@@ -96,6 +96,7 @@ import { GenerateRssUrlComponent } from './dialogs/generate-rss-url/generate-rss
 import { SortPropertyComponent } from './components/sort-property/sort-property.component';
 import { OnlyNumberDirective } from './directives/only-number.directive';
 import { ArchiveViewerComponent } from './components/archive-viewer/archive-viewer.component';
+import { CustomExportDialogComponent } from './dialogs/custom-export-dialog/custom-export-dialog.component';
 
 registerLocaleData(es, 'es');
 
@@ -148,7 +149,8 @@ registerLocaleData(es, 'es');
         GenerateRssUrlComponent,
         SortPropertyComponent,
         OnlyNumberDirective,
-        ArchiveViewerComponent
+        ArchiveViewerComponent,
+        CustomExportDialogComponent
     ],
     imports: [
         CommonModule,

@@ -1,0 +1,99 @@
+<h4 mat-dialog-title i18n="Export dialog title">Export to Folder</h4>
+
+<mat-dialog-content>
+  <div class="export-dialog-content">
+    <!-- File info -->
+    <div class="file-info">
+      <mat-icon>{{file.isAudio ? 'audiotrack' : 'movie'}}</mat-icon>
+      <span class="file-title">{{file.title}}</span>
+    </div>
+
+    <!-- Folder navigation -->
+    <div class="folder-navigation">
+      <div class="navigation-header">
+        <button mat-icon-button (click)="navigateHome()" [disabled]="loading || !canNavigateBack()" matTooltip="Go to root" i18n-matTooltip>
+          <mat-icon>home</mat-icon>
+        </button>
+        <button mat-icon-button (click)="navigateBack()" [disabled]="loading || !canNavigateBack()" matTooltip="Go back" i18n-matTooltip>
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <span class="current-path">{{getCurrentFolderDisplay()}}</span>
+      </div>
+
+      <div class="folder-list-container">
+        <div *ngIf="loading" class="loading-container">
+          <mat-spinner diameter="30"></mat-spinner>
+        </div>
+
+        <div *ngIf="error && !loading" class="error-container">
+          <mat-icon color="warn">error</mat-icon>
+          <span>{{error}}</span>
+        </div>
+
+        <div *ngIf="!loading && !error" class="folder-list">
+          <div *ngIf="folders.length === 0" class="empty-folder" i18n="Empty folder message">
+            No subfolders. Files will be exported here.
+          </div>
+
+          <div *ngFor="let folder of folders" class="folder-item" (click)="navigateToFolder(folder)">
+            <mat-icon>{{folder.isSymlink ? 'folder_shared' : 'folder'}}</mat-icon>
+            <span class="folder-name">{{folder.name}}</span>
+            <mat-icon class="navigate-icon">chevron_right</mat-icon>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export options -->
+    <div class="export-options">
+      <h5 i18n="Export options header">Export Options</h5>
+
+      <mat-checkbox [(ngModel)]="createNewFolder" i18n="Create new folder checkbox">
+        Create new folder for this file
+      </mat-checkbox>
+
+      <mat-checkbox [(ngModel)]="includeNfo" i18n="Include NFO checkbox">
+        Include NFO file
+      </mat-checkbox>
+
+      <mat-checkbox [(ngModel)]="useSimpleFilenames" i18n="Simple filenames checkbox">
+        Use simplified filenames (video.mp4, video.nfo)
+      </mat-checkbox>
+
+      <mat-form-field *ngIf="createNewFolder" appearance="outline" class="naming-select">
+        <mat-label i18n="Folder naming convention label">Folder Naming Convention</mat-label>
+        <mat-select [(ngModel)]="namingConvention">
+          <mat-option *ngFor="let conv of namingConventions" [value]="conv.value">
+            {{conv.label}}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field *ngIf="namingConvention === 'custom' && createNewFolder" appearance="outline" class="template-input">
+        <mat-label i18n="Custom template label">Custom Template</mat-label>
+        <input matInput [(ngModel)]="customTemplate" [placeholder]="templatePlaceholder">
+        <mat-hint>{{templateHint}}</mat-hint>
+      </mat-form-field>
+    </div>
+
+    <!-- Export status -->
+    <div *ngIf="exportSuccess" class="export-status success">
+      <mat-icon>check_circle</mat-icon>
+      <span i18n="Export success message">Export successful!</span>
+    </div>
+
+    <div *ngIf="exportError" class="export-status error">
+      <mat-icon>error</mat-icon>
+      <span>{{exportError}}</span>
+    </div>
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions>
+  <button mat-flat-button color="primary" (click)="exportFile()" [disabled]="exporting || loading || exportSuccess">
+    <ng-container *ngIf="!exporting" i18n="Export button">Export</ng-container>
+    <mat-spinner *ngIf="exporting" diameter="20"></mat-spinner>
+  </button>
+  <span class="spacer"></span>
+  <button mat-stroked-button mat-dialog-close i18n="Cancel button">Cancel</button>
+</mat-dialog-actions>

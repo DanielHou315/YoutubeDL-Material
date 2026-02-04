@@ -34,6 +34,7 @@
                     <button *ngIf="(playlist.type === 'audio') === file_obj.isAudio" [disabled]="playlist.uids?.includes(file_obj.uid)" (click)="emitAddFileToPlaylist(playlist.id)" mat-menu-item>{{playlist.name}}</button>
                 </ng-container>
             </mat-menu>
+            <button *ngIf="enableExport" (click)="openExportDialog()" mat-menu-item><mat-icon>folder_open</mat-icon>&nbsp;<ng-container i18n="Export to folder menu item">Export to folder</ng-container></button>
             <mat-divider></mat-divider>
             <button *ngIf="file_obj.sub_id" (click)="emitDeleteFile()" mat-menu-item><mat-icon>restore</mat-icon><ng-container i18n="Delete and redownload subscription video button">Delete and redownload</ng-container></button>
             <button *ngIf="!file_obj.sub_id" (click)="emitDeleteFile()" mat-menu-item><mat-icon>delete</mat-icon><ng-container i18n="Delete video button">Delete</ng-container></button>
