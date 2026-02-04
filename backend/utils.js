@@ -861,54 +861,71 @@ exports.getDirectoriesInDirectory = async (basePath) => {
  * Gets list of folders in the export directory with symlink detection
  * @param {string} basePath - The base export path
  * @param {string} subPath - Optional subpath relative to basePath
- * @returns {Promise<Array>} - Array of folder objects with name, path, and isSymlink
+ * @param {boolean} recursive - Whether to load children recursively
+ * @param {number} maxDepth - Maximum recursion depth (default 10)
+ * @returns {Promise<Array>} - Array of folder objects with name, path, isSymlink, and children
  */
-exports.getExportFolders = async (basePath, subPath = '') => {
-    try {
-        const fullPath = subPath ? path.join(basePath, subPath) : basePath;
+exports.getExportFolders = async (basePath, subPath = '', recursive = false, maxDepth = 10) => {
+    const scanFolder = async (currentSubPath, depth) => {
+        if (depth > maxDepth) return [];
 
-        // Ensure the directory exists
-        if (!(await fs.pathExists(fullPath))) {
-            return [];
-        }
+        try {
+            const fullPath = currentSubPath ? path.join(basePath, currentSubPath) : basePath;
 
-        const entries = await fs.readdir(fullPath, { withFileTypes: true });
-        const folders = [];
+            // Ensure the directory exists
+            if (!(await fs.pathExists(fullPath))) {
+                return [];
+            }
 
-        for (const entry of entries) {
-            // Check if it's a directory or a symlink pointing to a directory
-            const entryPath = path.join(fullPath, entry.name);
-            let isDirectory = entry.isDirectory();
-            let isSymlink = entry.isSymbolicLink();
+            const entries = await fs.readdir(fullPath, { withFileTypes: true });
+            const folders = [];
 
-            if (isSymlink) {
-                try {
-                    const stat = await fs.stat(entryPath);
-                    isDirectory = stat.isDirectory();
-                } catch (err) {
-                    // Broken symlink, skip it
-                    continue;
+            for (const entry of entries) {
+                // Check if it's a directory or a symlink pointing to a directory
+                const entryPath = path.join(fullPath, entry.name);
+                let isDirectory = entry.isDirectory();
+                let isSymlink = entry.isSymbolicLink();
+
+                if (isSymlink) {
+                    try {
+                        const stat = await fs.stat(entryPath);
+                        isDirectory = stat.isDirectory();
+                    } catch (err) {
+                        // Broken symlink, skip it
+                        continue;
+                    }
+                }
+
+                if (isDirectory) {
+                    const folderPath = currentSubPath ? path.join(currentSubPath, entry.name) : entry.name;
+                    const folder = {
+                        name: entry.name,
+                        path: folderPath,
+                        fullPath: entryPath,
+                        isSymlink: isSymlink,
+                        children: []
+                    };
+
+                    // Recursively load children if requested
+                    if (recursive) {
+                        folder.children = await scanFolder(folderPath, depth + 1);
+                    }
+
+                    folders.push(folder);
                 }
             }
 
-            if (isDirectory) {
-                folders.push({
-                    name: entry.name,
-                    path: subPath ? path.join(subPath, entry.name) : entry.name,
-                    fullPath: entryPath,
-                    isSymlink: isSymlink
-                });
-            }
+            // Sort folders alphabetically
+            folders.sort((a, b) => a.name.localeCompare(b.name));
+
+            return folders;
+        } catch (err) {
+            logger.error(`Failed to get export folders at ${currentSubPath}: ${err.message}`);
+            return [];
         }
+    };
 
-        // Sort folders alphabetically
-        folders.sort((a, b) => a.name.localeCompare(b.name));
-
-        return folders;
-    } catch (err) {
-        logger.error(`Failed to get export folders: ${err.message}`);
-        return [];
-    }
+    return scanFolder(subPath, 0);
 }
 
 exports.parseOutputJSON = (output, err) => {

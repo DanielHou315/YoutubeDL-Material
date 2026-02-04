@@ -1726,7 +1726,8 @@ app.get('/api/getExportFolders', optionalJwt, async (req, res) => {
     }
 
     const subPath = req.query.subPath || '';
-    const folders = await utils.getExportFolders(exportBasePath, subPath);
+    const recursive = req.query.recursive === 'true';
+    const folders = await utils.getExportFolders(exportBasePath, subPath, recursive);
 
     res.send({
         success: true,

@@ -910,10 +910,10 @@ export class PostsService implements CanActivate {
 
     // export folder management
 
-    getExportFolders(subPath: string = ''): Observable<any> {
+    getExportFolders(recursive: boolean = false): Observable<any> {
         let params = this.httpOptions.params;
-        if (subPath) {
-            params = params.set('subPath', subPath);
+        if (recursive) {
+            params = params.set('recursive', 'true');
         }
         return this.http.get(this.path + 'getExportFolders', { params });
     }

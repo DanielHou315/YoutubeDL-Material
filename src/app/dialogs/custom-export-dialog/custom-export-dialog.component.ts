@@ -8,6 +8,7 @@ interface ExportFolder {
   path: string;
   fullPath: string;
   isSymlink: boolean;
+  children: ExportFolder[];
 }
 
 @Component({
@@ -18,8 +19,10 @@ interface ExportFolder {
 export class CustomExportDialogComponent implements OnInit {
   file: DatabaseFile;
 
-  // Folder navigation
-  folders: ExportFolder[] = [];
+  // Folder tree (loaded once)
+  folderTree: ExportFolder[] = [];
+
+  // Current navigation state
   currentPath = '';
   pathHistory: string[] = [];
   loading = true;
@@ -57,19 +60,18 @@ export class CustomExportDialogComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.loadFolders();
+    this.loadFolderTree();
   }
 
-  loadFolders(subPath: string = ''): void {
+  loadFolderTree(): void {
     this.loading = true;
     this.error = '';
 
-    this.postsService.getExportFolders(subPath).subscribe(
+    this.postsService.getExportFolders(true).subscribe(
       (res: any) => {
         this.loading = false;
         if (res.success) {
-          this.folders = res.folders;
-          this.currentPath = res.currentPath || '';
+          this.folderTree = res.folders;
         } else {
           this.error = res.error || 'Failed to load folders';
         }
@@ -82,21 +84,42 @@ export class CustomExportDialogComponent implements OnInit {
     );
   }
 
+  // Get folders at current path from cached tree
+  get folders(): ExportFolder[] {
+    if (!this.currentPath) {
+      return this.folderTree;
+    }
+
+    // Navigate through the tree to find current folder's children
+    const pathParts = this.currentPath.split('/').filter(p => p);
+    let current = this.folderTree;
+
+    for (const part of pathParts) {
+      const found = current.find(f => f.name === part);
+      if (found) {
+        current = found.children || [];
+      } else {
+        return [];
+      }
+    }
+
+    return current;
+  }
+
   navigateToFolder(folder: ExportFolder): void {
     this.pathHistory.push(this.currentPath);
-    this.loadFolders(folder.path);
+    this.currentPath = folder.path;
   }
 
   navigateBack(): void {
     if (this.pathHistory.length > 0) {
-      const previousPath = this.pathHistory.pop();
-      this.loadFolders(previousPath);
+      this.currentPath = this.pathHistory.pop() || '';
     }
   }
 
   navigateHome(): void {
     this.pathHistory = [];
-    this.loadFolders('');
+    this.currentPath = '';
   }
 
   canNavigateBack(): boolean {
