@@ -65,20 +65,33 @@ export class CustomExportDialogComponent implements OnInit {
   generateFolderName(convention: string): string {
     const title = this.file.title || 'Untitled';
 
+    // Extract year from upload_date (YYYY-MM-DD or YYYYMMDD format)
+    let year = '';
+    if (this.file.upload_date) {
+      const dateStr = this.file.upload_date.replace(/-/g, '');
+      const extracted = dateStr.substring(0, 4);
+      if (/^\d{4}$/.test(extracted)) {
+        year = extracted;
+      }
+    }
+
+    // Build Jellyfin-compatible base name: "Title (YYYY)"
+    const baseName = year ? `${title} (${year})` : title;
+
     switch (convention) {
       case 'snake_case':
-        return title
+        return baseName
           .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/[^a-z0-9()]+/g, '_')
           .replace(/^_+|_+$/g, '');
       case 'kebab_case':
-        return title
+        return baseName
           .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/[^a-z0-9()]+/g, '-')
           .replace(/^-+|-+$/g, '');
       case 'original':
       default:
-        return title;
+        return baseName;
     }
   }
 

@@ -256,6 +256,30 @@ exports.sanitizeFolderName = (name) => {
 };
 
 /**
+ * Builds a Jellyfin-compatible base name in the format "Title (YYYY)"
+ * Used for both folder names and filenames (they must match for Jellyfin).
+ *
+ * @param {string} title - The video title
+ * @param {string} uploadDate - Upload date in YYYYMMDD or YYYY-MM-DD format
+ * @returns {string} - Sanitized name in "Title (YYYY)" format
+ */
+exports.buildJellyfinBaseName = (title, uploadDate) => {
+    // Reserve space for " (YYYY)" suffix (7 chars)
+    const sanitizedTitle = exports.sanitizeName(title || 'Untitled', {
+        maxLength: MAX_FOLDER_NAME_LENGTH - 7,
+        replacement: '_',
+        preserveCase: true
+    });
+
+    // Extract year from YYYYMMDD or YYYY-MM-DD format
+    const year = uploadDate ? uploadDate.replace(/-/g, '').substring(0, 4) : null;
+    if (year && /^\d{4}$/.test(year)) {
+        return `${sanitizedTitle} (${year})`;
+    }
+    return sanitizedTitle;
+};
+
+/**
  * Transforms a folder name according to the specified naming convention
  *
  * @param {string} name - The original name (will be sanitized)
@@ -340,7 +364,7 @@ exports.getSimplifiedFilenames = (type) => {
     return {
         mediaFile: `video${ext}`,
         nfoFile: 'video.nfo',
-        thumbnailBase: 'video - poster' // extension added by caller
+        thumbnailFile: 'cover.jpg'
     };
 };
 

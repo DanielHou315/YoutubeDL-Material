@@ -632,16 +632,35 @@ async function checkDownloadPercent(download_uid) {
 }
 
 exports.generateNFOFile = (info, output_path) => {
+    const title = info['fulltitle'] || info['title'] || 'Untitled';
+    const uploadDate = utils.formatDateString(info['upload_date']);
+    const year = info['upload_date'] ? info['upload_date'].replace(/-/g, '').substring(0, 4) : undefined;
+    const runtime = info['duration'] ? Math.round(info['duration'] / 60) : undefined;
+    const channelName = info['channel'] || info['uploader'] || undefined;
+    const extractor = info['extractor'] || 'youtube';
+
     const nfo_obj = {
-        episodedetails: {
-            title: info['fulltitle'],
-            episode: info['playlist_index'] ? info['playlist_index'] : undefined,
-            premiered: utils.formatDateString(info['upload_date']),
-            plot: `${info['uploader_url']}\n${info['description']}\n${info['playlist_title'] ? info['playlist_title'] : ''}`,
-            director: info['artist'] ? info['artist'] : info['uploader']
+        movie: {
+            title: title,
+            originaltitle: title,
+            year: year,
+            premiered: uploadDate !== 'N/A' ? uploadDate : undefined,
+            plot: info['description'] || '',
+            runtime: runtime,
+            studio: channelName,
+            director: channelName,
+            tag: extractor,
+            uniqueid: {
+                '@type': extractor,
+                '#': info['id'] || ''
+            },
+            thumb: {
+                '@aspect': 'poster',
+                '#': 'cover.jpg'
+            }
         }
     };
-    const doc = create(nfo_obj);
+    const doc = create({ encoding: 'UTF-8', standalone: 'yes' }, nfo_obj);
     const xml = doc.end({ prettyPrint: true });
     fs.writeFileSync(output_path, xml);
 }
@@ -666,33 +685,34 @@ exports.exportToFolder = async (video_file_path, info, type) => {
         const customTemplate = config_api.getConfigItem('ytdl_custom_export_folder_template');
         const useSimpleFilenames = config_api.getConfigItem('ytdl_export_use_simple_filenames');
 
-        // Get the video title for folder naming
+        // Build Jellyfin-compatible base name: "Title (YYYY)"
         const videoTitle = info['title'] || info['fulltitle'] || 'untitled';
+        const uploadDate = info['upload_date'] || '';
+        const jellyfinBaseName = utils.buildJellyfinBaseName(videoTitle, uploadDate);
 
         // Transform the folder name based on the naming convention
         let folderName = utils.transformFolderName(
-            utils.sanitizeFolderName(videoTitle),
+            jellyfinBaseName,
             namingConvention,
             customTemplate,
             info
         );
 
-        // Get the original filename from the video path
-        const originalVideoFileName = path.basename(video_file_path);
-        const originalVideoFileNameNoExt = utils.removeFileExtension(originalVideoFileName);
+        // Get the video file extension
         const videoExt = path.extname(video_file_path);
 
-        // Determine filenames - either simplified or original
-        let mediaFileName, nfoFileName, thumbnailBaseName;
+        // Determine filenames - Jellyfin requires folder name = file name (without ext)
+        let mediaFileName, nfoFileName, thumbnailFileName;
         if (useSimpleFilenames) {
             const simplifiedNames = utils.getSimplifiedFilenames(type);
             mediaFileName = simplifiedNames.mediaFile;
             nfoFileName = simplifiedNames.nfoFile;
-            thumbnailBaseName = simplifiedNames.thumbnailBase;
+            thumbnailFileName = simplifiedNames.thumbnailFile;
         } else {
-            mediaFileName = originalVideoFileName;
-            nfoFileName = `${originalVideoFileNameNoExt}.nfo`;
-            thumbnailBaseName = `${originalVideoFileNameNoExt} - poster`;
+            // Jellyfin: file base name must match folder name
+            mediaFileName = `${folderName}${videoExt}`;
+            nfoFileName = `${folderName}.nfo`;
+            thumbnailFileName = 'cover.jpg';
         }
 
         // Validate and adjust path length for cross-platform compatibility
@@ -703,11 +723,10 @@ exports.exportToFolder = async (video_file_path, info, type) => {
             }
             folderName = pathValidation.folderName;
             mediaFileName = pathValidation.fileName;
-            // Update NFO and thumbnail names if media filename changed
-            if (!useSimpleFilenames && mediaFileName !== originalVideoFileName) {
+            // Update NFO name if media filename changed
+            if (!useSimpleFilenames) {
                 const adjustedNameNoExt = utils.removeFileExtension(mediaFileName);
                 nfoFileName = `${adjustedNameNoExt}.nfo`;
-                thumbnailBaseName = adjustedNameNoExt;
             }
         }
 
@@ -730,12 +749,11 @@ exports.exportToFolder = async (video_file_path, info, type) => {
             logger.info(`Exported NFO to: ${exportedNfoPath}`);
         }
 
-        // Also copy thumbnail if it exists
+        // Copy thumbnail as cover.jpg (Jellyfin standard)
         const thumbnailPath = utils.getDownloadedThumbnail(video_file_path);
         let exportedThumbnailPath = null;
         if (thumbnailPath) {
-            const thumbnailExt = path.extname(thumbnailPath);
-            exportedThumbnailPath = path.join(exportFolderPath, `${thumbnailBaseName}${thumbnailExt}`);
+            exportedThumbnailPath = path.join(exportFolderPath, thumbnailFileName);
             await fs.copy(thumbnailPath, exportedThumbnailPath);
             logger.info(`Exported thumbnail to: ${exportedThumbnailPath}`);
         }
@@ -794,16 +812,18 @@ exports.exportFileToFolder = async (file, targetFolder, options = {}) => {
         const info = utils.getJSON(filePath, type) || {};
 
         // Determine the export folder path
+        let folderName;
         let exportFolderPath;
         if (createNewFolder) {
-            // Use custom folder name if provided, otherwise generate based on convention
-            let folderName;
+            // Use custom folder name if provided, otherwise generate Jellyfin-compatible name
             if (customFolderName) {
                 folderName = utils.sanitizeFolderName(customFolderName);
             } else {
                 const videoTitle = file.title || info['title'] || info['fulltitle'] || 'untitled';
+                const uploadDate = info['upload_date'] || file.upload_date || '';
+                const jellyfinBaseName = utils.buildJellyfinBaseName(videoTitle, uploadDate);
                 folderName = utils.transformFolderName(
-                    utils.sanitizeFolderName(videoTitle),
+                    jellyfinBaseName,
                     namingConvention,
                     '',
                     info
@@ -812,25 +832,25 @@ exports.exportFileToFolder = async (file, targetFolder, options = {}) => {
             exportFolderPath = path.join(exportBasePath, targetFolder, folderName);
         } else {
             // Export directly to the target folder
+            folderName = path.basename(targetFolder) || 'export';
             exportFolderPath = path.join(exportBasePath, targetFolder);
         }
 
-        // Get the original filename
-        const originalFileName = path.basename(filePath);
-        const originalFileNameNoExt = utils.removeFileExtension(originalFileName);
+        // Get the file extension
         const fileExt = path.extname(filePath);
 
-        // Determine filenames
-        let mediaFileName, nfoFileName, thumbnailBaseName;
+        // Determine filenames - Jellyfin requires folder name = file name (without ext)
+        let mediaFileName, nfoFileName, thumbnailFileName;
         if (useSimpleFilenames) {
             const simplifiedNames = utils.getSimplifiedFilenames(type);
             mediaFileName = simplifiedNames.mediaFile;
             nfoFileName = simplifiedNames.nfoFile;
-            thumbnailBaseName = simplifiedNames.thumbnailBase;
+            thumbnailFileName = simplifiedNames.thumbnailFile;
         } else {
-            mediaFileName = originalFileName;
-            nfoFileName = `${originalFileNameNoExt}.nfo`;
-            thumbnailBaseName = `${originalFileNameNoExt} - poster`;
+            // Jellyfin: file base name must match folder name
+            mediaFileName = `${folderName}${fileExt}`;
+            nfoFileName = `${folderName}.nfo`;
+            thumbnailFileName = 'cover.jpg';
         }
 
         // Validate and adjust path length
@@ -840,10 +860,9 @@ exports.exportFileToFolder = async (file, targetFolder, options = {}) => {
                 logger.warn(`Export path adjustment: ${warning}`);
             }
             mediaFileName = pathValidation.fileName;
-            if (!useSimpleFilenames && mediaFileName !== originalFileName) {
+            if (!useSimpleFilenames) {
                 const adjustedNameNoExt = utils.removeFileExtension(mediaFileName);
                 nfoFileName = `${adjustedNameNoExt}.nfo`;
-                thumbnailBaseName = `${adjustedNameNoExt} - poster`;
             }
         }
 
@@ -863,12 +882,11 @@ exports.exportFileToFolder = async (file, targetFolder, options = {}) => {
             logger.info(`Exported NFO to: ${exportedNfoPath}`);
         }
 
-        // Copy thumbnail if it exists
+        // Copy thumbnail as cover.jpg (Jellyfin standard)
         const thumbnailPath = utils.getDownloadedThumbnail(filePath);
         let exportedThumbnailPath = null;
         if (thumbnailPath) {
-            const thumbnailExt = path.extname(thumbnailPath);
-            exportedThumbnailPath = path.join(exportFolderPath, `${thumbnailBaseName}${thumbnailExt}`);
+            exportedThumbnailPath = path.join(exportFolderPath, thumbnailFileName);
             await fs.copy(thumbnailPath, exportedThumbnailPath);
             logger.info(`Exported thumbnail to: ${exportedThumbnailPath}`);
         }
