@@ -234,6 +234,9 @@ export class MainComponent implements OnInit {
       this.getSimulatedOutput();
     }
 
+    // restore active downloads from backend (survives page refresh)
+    this.restoreActiveDownloads();
+
     // get downloads routine
     if (this.interval_id) { clearInterval(this.interval_id) }
     this.interval_id = setInterval(() => {
@@ -766,6 +769,20 @@ export class MainComponent implements OnInit {
     dialogRef.afterClosed().subscribe(new_args => {
       if (new_args !== null && new_args !== undefined) {
         this.customArgs = new_args;
+      }
+    });
+  }
+
+  restoreActiveDownloads(): void {
+    this.postsService.getCurrentDownloads().subscribe(res => {
+      const allDownloads: Download[] = res['downloads'] || [];
+      const active = allDownloads.filter(d => !d.finished);
+      if (active.length > 0) {
+        this.downloads = active;
+        this.download_uids = active.map(d => d.uid);
+        this.current_download = active[active.length - 1];
+        this.downloadingfile = true;
+        this.percentDownloaded = this.current_download.percent_complete;
       }
     });
   }
