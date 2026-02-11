@@ -127,3 +127,27 @@
     white-space: nowrap;
     overflow: hidden;
 }
+
+.batch-action-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    padding: 4px 16px;
+    background: #424242;
+    color: white;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.batch-count {
+    margin: 0 8px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.batch-spacer {
+    flex: 1;
+}

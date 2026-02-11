@@ -32,7 +32,7 @@
             <!-- Real cards -->
             <ng-container *ngIf="normal_files_received && paged_data">
                 <div style="display: flex; align-items: center;" *ngFor="let file of paged_data; let i = index" class="mb-2 mt-2 d-flex justify-content-center" [ngClass]="[ postsService.card_size === 'small' ? 'col-2 small-col' : '', postsService.card_size === 'medium' ? 'col-6 col-lg-4 medium-col' : '', postsService.card_size === 'large' ? 'col-12 large-col' : '' ]">
-                    <app-unified-file-card [ngClass]="downloading_content[file.uid] ? 'blurred' : ''" [index]="i" [card_size]="postsService.card_size" [locale]="postsService.locale" (goToFile)="goToFile($event)" (goToSubscription)="goToSubscription($event)" (toggleFavorite)="toggleFavorite($event)" [file_obj]="file" [use_youtubedl_archive]="postsService.config['Downloader']['use_youtubedl_archive']" [availablePlaylists]="playlists" (addFileToPlaylist)="addFileToPlaylist($event)" [loading]="false" (deleteFile)="deleteFile($event)" [baseStreamPath]="postsService.path" [jwtString]="postsService.isLoggedIn ? this.postsService.token : ''" [enableExport]="!!postsService.config['Export']?.['export_base_path']"></app-unified-file-card>
+                    <app-unified-file-card [ngClass]="downloading_content[file.uid] ? 'blurred' : ''" [index]="i" [card_size]="postsService.card_size" [locale]="postsService.locale" (goToFile)="goToFile($event)" (goToSubscription)="goToSubscription($event)" (toggleFavorite)="toggleFavorite($event)" [file_obj]="file" [use_youtubedl_archive]="postsService.config['Downloader']['use_youtubedl_archive']" [availablePlaylists]="playlists" (addFileToPlaylist)="addFileToPlaylist($event)" [loading]="false" (deleteFile)="deleteFile($event)" [baseStreamPath]="postsService.path" [jwtString]="postsService.isLoggedIn ? this.postsService.token : ''" [enableExport]="!!postsService.config['Export']?.['export_base_path']" [batchSelectMode]="batchSelectMode" [isSelected]="selectedForBatch.has(file.uid)" (selectForBatch)="toggleBatchSelection($event)" (enterBatchSelect)="enterBatchSelectMode($event)"></app-unified-file-card>
                     <mat-spinner *ngIf="downloading_content[file.uid]" class="downloading-spinner" [diameter]="32"></mat-spinner>
                 </div>
                 <div *ngIf="paged_data.length === 0">
@@ -102,4 +102,27 @@
                 [pageSizeOptions]="[5, 10, 25, 100, this.paged_data && this.paged_data.length > 100 ? this.paged_data.length : 250]">
         </mat-paginator>
     </div>
+</div>
+
+<!-- Batch action bar -->
+<div *ngIf="batchSelectMode" class="batch-action-bar">
+    <button mat-icon-button (click)="exitBatchSelectMode()" matTooltip="Cancel selection" i18n-matTooltip><mat-icon>close</mat-icon></button>
+    <span class="batch-count">{{selectedForBatch.size}} <ng-container i18n="batch selected count">selected</ng-container></span>
+    <button mat-icon-button (click)="selectAllOnPage()" matTooltip="Select all on page" i18n-matTooltip><mat-icon>select_all</mat-icon></button>
+    <span class="batch-spacer"></span>
+    <button mat-icon-button (click)="batchToggleFavorite(true)" matTooltip="Favorite" i18n-matTooltip><mat-icon>favorite</mat-icon></button>
+    <button mat-icon-button (click)="batchToggleFavorite(false)" matTooltip="Unfavorite" i18n-matTooltip><mat-icon>favorite_border</mat-icon></button>
+    <button mat-icon-button [matMenuTriggerFor]="batchTagMenu" matTooltip="Tag" i18n-matTooltip><mat-icon>label</mat-icon></button>
+    <mat-menu #batchTagMenu="matMenu">
+        <ng-container *ngFor="let tag of postsService.tags">
+            <button mat-menu-item (click)="batchAddTag(tag.uid)"><mat-icon>add</mat-icon>{{tag.name}}</button>
+            <button mat-menu-item (click)="batchRemoveTag(tag.uid)"><mat-icon>remove</mat-icon>{{tag.name}}</button>
+        </ng-container>
+    </mat-menu>
+    <button mat-icon-button [matMenuTriggerFor]="batchPlaylistMenu" [disabled]="!playlists || playlists.length === 0" matTooltip="Add to playlist" i18n-matTooltip><mat-icon>playlist_add</mat-icon></button>
+    <mat-menu #batchPlaylistMenu="matMenu">
+        <button *ngFor="let playlist of playlists" mat-menu-item (click)="batchAddToPlaylist(playlist.id)">{{playlist.name}}</button>
+    </mat-menu>
+    <button *ngIf="!!postsService.config['Export']?.['export_base_path']" mat-icon-button (click)="batchExport()" matTooltip="Export" i18n-matTooltip><mat-icon>folder_open</mat-icon></button>
+    <button mat-icon-button (click)="batchDelete()" matTooltip="Delete" i18n-matTooltip color="warn"><mat-icon>delete</mat-icon></button>
 </div>

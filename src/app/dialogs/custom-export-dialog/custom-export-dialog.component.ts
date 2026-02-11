@@ -18,6 +18,7 @@ interface ExportFolder {
 })
 export class CustomExportDialogComponent implements OnInit {
   file: DatabaseFile;
+  batchMode = false;
 
   // Folder tree (loaded once)
   folderTree: ExportFolder[] = [];
@@ -55,6 +56,7 @@ export class CustomExportDialogComponent implements OnInit {
     private postsService: PostsService
   ) {
     this.file = data.file;
+    this.batchMode = !!data.batchMode;
   }
 
   ngOnInit(): void {
@@ -200,10 +202,6 @@ export class CustomExportDialogComponent implements OnInit {
   }
 
   exportFile(): void {
-    this.exporting = true;
-    this.exportError = '';
-    this.exportSuccess = false;
-
     const options = {
       includeNfo: this.includeNfo,
       useSimpleFilenames: this.useSimpleFilenames,
@@ -211,6 +209,15 @@ export class CustomExportDialogComponent implements OnInit {
       customFolderName: this.createNewFolder ? this.folderName : '',
       createNewFolder: this.createNewFolder
     };
+
+    if (this.batchMode) {
+      this.dialogRef.close({ targetFolder: this.currentPath, options });
+      return;
+    }
+
+    this.exporting = true;
+    this.exportError = '';
+    this.exportSuccess = false;
 
     this.postsService.exportFile(this.file.uid, this.currentPath, options).subscribe(
       (res: any) => {

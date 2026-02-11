@@ -43,6 +43,23 @@
   height: 20px;
 }
 
+.card-selected {
+  border: 3px solid #448aff;
+  opacity: 0.9;
+}
+
+.selection-checkbox {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 1000;
+  color: #448aff;
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+}
+
 /* Coerce the <span> icon container away from display:inline */
 /* TODO(mdc-migration): The following rule targets internal classes of button that may no longer apply for the MDC version. */
 .mat-mdc-icon-button .mat-button-wrapper {

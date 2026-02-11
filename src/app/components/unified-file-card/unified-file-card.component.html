@@ -12,7 +12,8 @@
         [style.top]="contextMenuPosition.y"
         [matMenuTriggerFor]="context_menu">
     </div>
-    <mat-icon *ngIf="!loading && file_obj?.exported" class="exported-indicator" matTooltip="Already exported" i18n-matTooltip>check_circle</mat-icon>
+    <mat-icon *ngIf="batchSelectMode && !loading" class="selection-checkbox" (click)="selectForBatch.emit(file_obj); $event.stopPropagation()">{{isSelected ? 'check_circle' : 'radio_button_unchecked'}}</mat-icon>
+    <mat-icon *ngIf="!batchSelectMode && !loading && file_obj?.exported" class="exported-indicator" matTooltip="Already exported" i18n-matTooltip>check_circle</mat-icon>
     <button *ngIf="!file_obj || !file_obj.auto" [disabled]="loading" [matMenuTriggerFor]="action_menu" class="menuButton" mat-icon-button><mat-icon>more_vert</mat-icon></button>
     <mat-menu #context_menu>
         <ng-container *ngIf="!loading">
@@ -50,7 +51,7 @@
             <button mat-menu-item>Placeholder</button>
         </ng-container>
     </mat-menu>
-    <mat-card [matTooltip]="null" (click)="navigateToFile($event)" matRipple class="file-mat-card" [ngClass]="{'small-mat-card': card_size === 'small', 'file-mat-card': card_size === 'medium', 'large-mat-card': card_size === 'large', 'mat-elevation-z4': !elevated, 'mat-elevation-z8': elevated}">
+    <mat-card [matTooltip]="null" (click)="navigateToFile($event)" (mousedown)="onPressStart($event)" (mouseup)="onPressEnd()" (mouseleave)="onPressEnd()" (touchstart)="onPressStart($event)" (touchend)="onPressEnd()" matRipple class="file-mat-card" [ngClass]="{'small-mat-card': card_size === 'small', 'file-mat-card': card_size === 'medium', 'large-mat-card': card_size === 'large', 'mat-elevation-z4': !elevated && !isSelected, 'mat-elevation-z8': elevated, 'card-selected': isSelected}">
         <div style="padding:5px">
             <div *ngIf="!loading && file_obj.thumbnailURL" class="img-div">
                 <div [ngClass]="{'image-small': card_size === 'small', 'image': card_size === 'medium', 'image-large': card_size === 'large'}" style="position: relative">

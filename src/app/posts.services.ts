@@ -371,6 +371,13 @@ export class PostsService implements CanActivate {
         return this.http.post(this.path + 'deleteFile', body, this.httpOptions);
     }
 
+    batchAction(action: string, uids: string[], extra: any = {}) {
+        const body = { action, uids, ...extra };
+        return this.http.post<{success: boolean, count: number}>(
+            this.path + 'batchAction', body, this.httpOptions
+        );
+    }
+
     getMp3s() {
         return this.http.get<GetMp3sResponse>(this.path + 'getMp3s', this.httpOptions);
     }

@@ -1,4 +1,4 @@
-import { Component, OnInit, Input, Output, EventEmitter, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, Input, Output, EventEmitter, ViewChild } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { VideoInfoDialogComponent } from 'app/dialogs/video-info-dialog/video-info-dialog.component';
 import { CustomExportDialogComponent } from 'app/dialogs/custom-export-dialog/custom-export-dialog.component';
@@ -24,7 +24,7 @@ registerLocaleData(localeNB);
   templateUrl: './unified-file-card.component.html',
   styleUrls: ['./unified-file-card.component.scss']
 })
-export class UnifiedFileCardComponent implements OnInit {
+export class UnifiedFileCardComponent implements OnInit, OnDestroy {
 
   // required info
   file_title = '';
@@ -39,6 +39,10 @@ export class UnifiedFileCardComponent implements OnInit {
   streamURL = null;
   hide_image = false;
 
+  // long-press detection
+  private longPressTimer: any = null;
+  private longPressTriggered = false;
+
   // input/output
   @Input() loading = true;
   @Input() theme = null;
@@ -52,12 +56,16 @@ export class UnifiedFileCardComponent implements OnInit {
   @Input() jwtString = null;
   @Input() availablePlaylists = null;
   @Input() enableExport = false;
+  @Input() batchSelectMode = false;
+  @Input() isSelected = false;
   @Output() goToFile = new EventEmitter<any>();
   @Output() toggleFavorite = new EventEmitter<DatabaseFile>();
   @Output() goToSubscription = new EventEmitter<any>();
   @Output() deleteFile = new EventEmitter<any>();
   @Output() addFileToPlaylist = new EventEmitter<any>();
   @Output() editPlaylist = new EventEmitter<any>();
+  @Output() selectForBatch = new EventEmitter<DatabaseFile>();
+  @Output() enterBatchSelect = new EventEmitter<DatabaseFile>();
 
 
   @ViewChild(MatMenuTrigger) contextMenu: MatMenuTrigger;
@@ -100,6 +108,17 @@ export class UnifiedFileCardComponent implements OnInit {
   }
 
   navigateToFile(event) {
+    if (this.longPressTriggered) {
+      return;
+    }
+    if (this.batchSelectMode) {
+      this.selectForBatch.emit(this.file_obj);
+      return;
+    }
+    if (event && event.ctrlKey && !this.is_playlist) {
+      this.enterBatchSelect.emit(this.file_obj);
+      return;
+    }
     this.goToFile.emit({file: this.file_obj, event: event});
   }
 
@@ -164,6 +183,30 @@ export class UnifiedFileCardComponent implements OnInit {
 
   emitToggleFavorite() {
     this.toggleFavorite.emit(this.file_obj);
+  }
+
+  onPressStart(event: MouseEvent | TouchEvent) {
+    if (this.loading || this.is_playlist || this.batchSelectMode) return;
+    this.longPressTriggered = false;
+    this.longPressTimer = setTimeout(() => {
+      this.longPressTriggered = true;
+      this.enterBatchSelect.emit(this.file_obj);
+    }, 500);
+  }
+
+  onPressEnd() {
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+    // Reset the flag after a brief delay so click handler can check it
+    setTimeout(() => { this.longPressTriggered = false; }, 50);
+  }
+
+  ngOnDestroy() {
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+    }
   }
 
   openExportDialog() {

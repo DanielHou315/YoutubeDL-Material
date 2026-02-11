@@ -1422,6 +1422,74 @@ app.post('/api/deleteFile', optionalJwt, async (req, res) => {
     res.send(wasDeleted);
 });
 
+app.post('/api/batchAction', optionalJwt, async (req, res) => {
+    const action = req.body.action;
+    const uids = req.body.uids;
+
+    if (!action || !uids || !Array.isArray(uids) || uids.length === 0) {
+        return res.send({success: false, error: 'Missing action or uids'});
+    }
+
+    let count = 0;
+    try {
+        if (action === 'delete') {
+            for (const uid of uids) {
+                const result = await files_api.deleteFile(uid, false);
+                if (result) count++;
+            }
+        } else if (action === 'favorite' || action === 'unfavorite') {
+            const favorite = action === 'favorite';
+            for (const uid of uids) {
+                await db_api.updateRecord('files', {uid: uid}, {favorite: favorite});
+                count++;
+            }
+        } else if (action === 'add_tag') {
+            const tag_uid = req.body.tag_uid;
+            if (!tag_uid) return res.send({success: false, error: 'Missing tag_uid'});
+            for (const uid of uids) {
+                const file = await db_api.getRecord('files', {uid: uid});
+                if (file) {
+                    const tags = file.tags || [];
+                    if (!tags.includes(tag_uid)) {
+                        tags.push(tag_uid);
+                        await db_api.updateRecord('files', {uid: uid}, {tags: tags});
+                    }
+                    count++;
+                }
+            }
+        } else if (action === 'remove_tag') {
+            const tag_uid = req.body.tag_uid;
+            if (!tag_uid) return res.send({success: false, error: 'Missing tag_uid'});
+            for (const uid of uids) {
+                const file = await db_api.getRecord('files', {uid: uid});
+                if (file) {
+                    const tags = (file.tags || []).filter(t => t !== tag_uid);
+                    await db_api.updateRecord('files', {uid: uid}, {tags: tags});
+                    count++;
+                }
+            }
+        } else if (action === 'add_to_playlist') {
+            const playlist_id = req.body.playlist_id;
+            if (!playlist_id) return res.send({success: false, error: 'Missing playlist_id'});
+            const playlist = await db_api.getRecord('playlists', {id: playlist_id});
+            if (!playlist) return res.send({success: false, error: 'Playlist not found'});
+            for (const uid of uids) {
+                if (!playlist.uids.includes(uid)) {
+                    playlist.uids.push(uid);
+                    count++;
+                }
+            }
+            await files_api.updatePlaylist(playlist);
+        } else {
+            return res.send({success: false, error: 'Unknown action: ' + action});
+        }
+        res.send({success: true, count: count});
+    } catch (e) {
+        logger.error('Batch action error: ' + e);
+        res.send({success: false, error: e.message || 'Batch action failed'});
+    }
+});
+
 app.post('/api/deleteAllFiles', optionalJwt, async (req, res) => {
     const blacklistMode = false;
     const uuid = req.isAuthenticated() ? req.user.uid : null;

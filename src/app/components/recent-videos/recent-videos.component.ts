@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from '@angular/core';
+import { Component, EventEmitter, HostListener, Input, OnInit, Output, ViewChild } from '@angular/core';
 import { PostsService } from 'app/posts.services';
 import { Router } from '@angular/router';
 import { DatabaseFile, FileType, FileTypeFilter, Sort } from '../../../api-types';
@@ -8,6 +8,8 @@ import { distinctUntilChanged } from 'rxjs/operators';
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { MatChipListboxChange } from '@angular/material/chips';
 import { MatSelectionListChange } from '@angular/material/list';
+import { MatDialog } from '@angular/material/dialog';
+import { CustomExportDialogComponent } from 'app/dialogs/custom-export-dialog/custom-export-dialog.component';
 
 @Component({
   selector: 'app-recent-videos',
@@ -72,9 +74,20 @@ export class RecentVideosComponent implements OnInit {
   
   playlists = null;
 
+  // batch selection
+  batchSelectMode = false;
+  selectedForBatch: Set<string> = new Set();
+
   @ViewChild('paginator') paginator: MatPaginator
 
-  constructor(public postsService: PostsService, private router: Router) {
+  @HostListener('document:keydown.escape')
+  onEscapeKey() {
+    if (this.batchSelectMode) {
+      this.exitBatchSelectMode();
+    }
+  }
+
+  constructor(public postsService: PostsService, private router: Router, private dialog: MatDialog) {
     // get cached file count
     const sub_id_appendix = this.sub_id ? `_${this.sub_id}` : ''
     if (localStorage.getItem(`cached_file_count${sub_id_appendix}`)) {
@@ -435,5 +448,155 @@ export class RecentVideosComponent implements OnInit {
   toggleFavorite(file_obj): void {
     file_obj.favorite = !file_obj.favorite;
     this.postsService.updateFile(file_obj.uid, {favorite: file_obj.favorite}).subscribe(res => {});
+  }
+
+  // batch selection methods
+
+  enterBatchSelectMode(file: DatabaseFile): void {
+    this.batchSelectMode = true;
+    this.selectedForBatch.clear();
+    this.selectedForBatch.add(file.uid);
+  }
+
+  toggleBatchSelection(file: DatabaseFile): void {
+    if (this.selectedForBatch.has(file.uid)) {
+      this.selectedForBatch.delete(file.uid);
+      if (this.selectedForBatch.size === 0) {
+        this.exitBatchSelectMode();
+      }
+    } else {
+      this.selectedForBatch.add(file.uid);
+    }
+  }
+
+  exitBatchSelectMode(): void {
+    this.batchSelectMode = false;
+    this.selectedForBatch.clear();
+  }
+
+  selectAllOnPage(): void {
+    if (!this.paged_data) return;
+    const allSelected = this.paged_data.every(f => this.selectedForBatch.has(f.uid));
+    if (allSelected) {
+      // deselect all on page
+      for (const file of this.paged_data) {
+        this.selectedForBatch.delete(file.uid);
+      }
+      if (this.selectedForBatch.size === 0) {
+        this.exitBatchSelectMode();
+      }
+    } else {
+      for (const file of this.paged_data) {
+        this.selectedForBatch.add(file.uid);
+      }
+    }
+  }
+
+  get selectedBatchUids(): string[] {
+    return Array.from(this.selectedForBatch);
+  }
+
+  batchDelete(): void {
+    const count = this.selectedForBatch.size;
+    if (!confirm($localize`Delete ${count} selected files?`)) return;
+    this.postsService.batchAction('delete', this.selectedBatchUids).subscribe(res => {
+      if (res.success) {
+        this.postsService.openSnackBar($localize`Deleted ${res.count} files`);
+        this.exitBatchSelectMode();
+        this.getAllFiles();
+      } else {
+        this.postsService.openSnackBar($localize`Batch delete failed`);
+      }
+    });
+  }
+
+  batchToggleFavorite(favorite: boolean): void {
+    const action = favorite ? 'favorite' : 'unfavorite';
+    this.postsService.batchAction(action, this.selectedBatchUids).subscribe(res => {
+      if (res.success) {
+        // Update local state
+        for (const file of this.paged_data) {
+          if (this.selectedForBatch.has(file.uid)) {
+            file.favorite = favorite;
+          }
+        }
+        this.postsService.openSnackBar(favorite ? $localize`Favorited ${res.count} files` : $localize`Unfavorited ${res.count} files`);
+      }
+    });
+  }
+
+  batchAddTag(tag_uid: string): void {
+    this.postsService.batchAction('add_tag', this.selectedBatchUids, {tag_uid}).subscribe(res => {
+      if (res.success) {
+        for (const file of this.paged_data) {
+          if (this.selectedForBatch.has(file.uid)) {
+            if (!file.tags) file.tags = [];
+            if (!file.tags.includes(tag_uid)) file.tags.push(tag_uid);
+          }
+        }
+        this.postsService.openSnackBar($localize`Tagged ${res.count} files`);
+      }
+    });
+  }
+
+  batchRemoveTag(tag_uid: string): void {
+    this.postsService.batchAction('remove_tag', this.selectedBatchUids, {tag_uid}).subscribe(res => {
+      if (res.success) {
+        for (const file of this.paged_data) {
+          if (this.selectedForBatch.has(file.uid)) {
+            file.tags = (file.tags || []).filter(t => t !== tag_uid);
+          }
+        }
+        this.postsService.openSnackBar($localize`Removed tag from ${res.count} files`);
+      }
+    });
+  }
+
+  batchAddToPlaylist(playlist_id: string): void {
+    this.postsService.batchAction('add_to_playlist', this.selectedBatchUids, {playlist_id}).subscribe(res => {
+      if (res.success) {
+        this.postsService.openSnackBar($localize`Added ${res.count} files to playlist`);
+        this.postsService.playlists_changed.next(true);
+      }
+    });
+  }
+
+  batchExport(): void {
+    // Open export dialog for the first selected file to get settings, then apply to all
+    const firstUid = this.selectedBatchUids[0];
+    const firstFile = this.paged_data.find(f => f.uid === firstUid);
+    if (!firstFile) return;
+
+    const dialogRef = this.dialog.open(CustomExportDialogComponent, {
+      data: { file: firstFile, batchMode: true },
+      minWidth: '450px'
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (!result) return;
+      const uids = this.selectedBatchUids;
+      let completed = 0;
+      let failed = 0;
+      this.postsService.openSnackBar($localize`Exporting ${uids.length} files...`);
+      for (const uid of uids) {
+        this.postsService.exportFile(uid, result.targetFolder, result.options).subscribe(res => {
+          completed++;
+          if (!res || res.success === false) failed++;
+          if (completed === uids.length) {
+            const successCount = completed - failed;
+            this.postsService.openSnackBar($localize`Exported ${successCount} of ${uids.length} files`);
+            this.getAllFiles();
+          }
+        }, () => {
+          completed++;
+          failed++;
+          if (completed === uids.length) {
+            const successCount = completed - failed;
+            this.postsService.openSnackBar($localize`Exported ${successCount} of ${uids.length} files`);
+            this.getAllFiles();
+          }
+        });
+      }
+    });
   }
 }
