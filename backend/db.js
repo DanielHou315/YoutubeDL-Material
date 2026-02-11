@@ -64,6 +64,10 @@ const tables = {
     archives: {
         name: 'archives'
     },
+    tags: {
+        name: 'tags',
+        primary_key: 'uid'
+    },
     test: {
         name: 'test'
     }

@@ -321,7 +321,7 @@ exports.getVideo = async (file_uid) => {
     return await db_api.getRecord('files', {uid: file_uid});
 }
 
-exports.getAllFiles = async (sort, range, text_search, file_type_filter, favorite_filter, sub_id, uuid) => {
+exports.getAllFiles = async (sort, range, text_search, file_type_filter, favorite_filter, sub_id, uuid, tag_filter) => {
     const filter_obj = {user_uid: uuid};
     const regex = true;
     if (text_search) {
@@ -342,9 +342,14 @@ exports.getAllFiles = async (sort, range, text_search, file_type_filter, favorit
 
     if (file_type_filter === 'audio_only') filter_obj['isAudio'] = true;
     else if (file_type_filter === 'video_only') filter_obj['isAudio'] = false;
-    
-    const files = JSON.parse(JSON.stringify(await db_api.getRecords('files', filter_obj, false, sort, range, text_search)));
-    const file_count = await db_api.getRecords('files', filter_obj, true);
+
+    let files = JSON.parse(JSON.stringify(await db_api.getRecords('files', filter_obj, false, sort, range, text_search)));
+    let file_count = await db_api.getRecords('files', filter_obj, true);
+
+    if (tag_filter) {
+        files = files.filter(f => f.tags && f.tags.includes(tag_filter));
+        file_count = files.length;
+    }
 
     return {files, file_count};
 }

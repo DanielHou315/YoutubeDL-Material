@@ -12,6 +12,7 @@
         [style.top]="contextMenuPosition.y"
         [matMenuTriggerFor]="context_menu">
     </div>
+    <mat-icon *ngIf="!loading && file_obj?.exported" class="exported-indicator" matTooltip="Already exported" i18n-matTooltip>check_circle</mat-icon>
     <button *ngIf="!file_obj || !file_obj.auto" [disabled]="loading" [matMenuTriggerFor]="action_menu" class="menuButton" mat-icon-button><mat-icon>more_vert</mat-icon></button>
     <mat-menu #context_menu>
         <ng-container *ngIf="!loading">

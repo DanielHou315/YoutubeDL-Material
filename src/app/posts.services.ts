@@ -51,6 +51,7 @@ import {
     SubscribeResponse,
     SubscriptionRequestData,
     SuccessObject,
+    Tag,
     UpdaterStatus,
     UnsubscribeRequest,
     UnsubscribeResponse,
@@ -166,6 +167,7 @@ export class PostsService implements CanActivate {
     config = null;
     subscriptions: Subscription[] = null;
     categories: Category[] = null;
+    tags: Tag[] = [];
     sidenav = null;
     locale = isoLangs['en'];
     version_info = null;
@@ -292,7 +294,7 @@ export class PostsService implements CanActivate {
     }
 
     // tslint:disable-next-line: max-line-length
-    downloadFile(url: string, type: FileType, selectedQuality: string, customQualityConfiguration: string, customArgs: string = null, additionalArgs: string = null, customOutput: string = null, youtubeUsername: string = null, youtubePassword: string = null, cropFileSettings: CropFileSettings = null) {
+    downloadFile(url: string, type: FileType, selectedQuality: string, customQualityConfiguration: string, customArgs: string = null, additionalArgs: string = null, customOutput: string = null, youtubeUsername: string = null, youtubePassword: string = null, cropFileSettings: CropFileSettings = null, tags: string[] = []) {
         const body: DownloadRequest = {url: url,
             maxHeight: selectedQuality,
             customQualityConfiguration: customQualityConfiguration,
@@ -302,7 +304,8 @@ export class PostsService implements CanActivate {
             youtubeUsername: youtubeUsername,
             youtubePassword: youtubePassword,
             type: type,
-            cropFileSettings: cropFileSettings}
+            cropFileSettings: cropFileSettings,
+            tags: tags}
         return this.http.post<DownloadResponse>(this.path + 'downloadFile', body, this.httpOptions);
     }
 
@@ -381,8 +384,9 @@ export class PostsService implements CanActivate {
         return this.http.post<GetFileResponse>(this.path + 'getFile', body, this.httpOptions);
     }
 
-    getAllFiles(sort: Sort = null, range: number[] = null, text_search: string = null, file_type_filter: FileTypeFilter = FileTypeFilter.BOTH, favorite_filter = false, sub_id: string = null) {
-        const body: GetAllFilesRequest = {sort: sort, range: range, text_search: text_search, file_type_filter: file_type_filter, favorite_filter: favorite_filter, sub_id: sub_id};
+    getAllFiles(sort: Sort = null, range: number[] = null, text_search: string = null, file_type_filter: FileTypeFilter = FileTypeFilter.BOTH, favorite_filter = false, sub_id: string = null, tag_filter: string = null) {
+        const body: any = {sort: sort, range: range, text_search: text_search, file_type_filter: file_type_filter, favorite_filter: favorite_filter, sub_id: sub_id};
+        if (tag_filter) { body.tag_filter = tag_filter; }
         return this.http.post<GetAllFilesResponse>(this.path + 'getAllFiles', body, this.httpOptions);
     }
 
@@ -561,6 +565,30 @@ export class PostsService implements CanActivate {
         this.getAllCategories().subscribe(res => {
             this.categories = res['categories'];
         });
+    }
+
+    // tags
+
+    loadTags() {
+        this.getAllTags().subscribe(res => {
+            this.tags = res['tags'] || [];
+        });
+    }
+
+    getAllTags() {
+        return this.http.post(this.path + 'getAllTags', {}, this.httpOptions);
+    }
+
+    createTag(name: string) {
+        return this.http.post(this.path + 'createTag', {name: name}, this.httpOptions);
+    }
+
+    updateTag(tag: Tag) {
+        return this.http.post<SuccessObject>(this.path + 'updateTag', {tag: tag}, this.httpOptions);
+    }
+
+    deleteTag(tag_uid: string) {
+        return this.http.post<SuccessObject>(this.path + 'deleteTag', {tag_uid: tag_uid}, this.httpOptions);
     }
 
     updateSubscription(subscription) {
@@ -811,6 +839,7 @@ export class PostsService implements CanActivate {
     }
 
     setInitialized() {
+        this.loadTags();
         this.service_initialized.next(true);
         this.initialized = true;
         this.config_reloaded.next(true);

@@ -77,7 +77,13 @@
                         Autoplay
                     </ng-container>
                 </mat-checkbox>
-                
+                <div *ngIf="postsService.tags?.length" style="clear: both; padding-top: 4px;">
+                    <mat-chip-listbox [multiple]="true" [value]="selectedTags" (change)="selectedTags = $event.value">
+                        <mat-chip-option *ngFor="let tag of postsService.tags" [value]="tag.uid" [style.--mdc-chip-elevated-container-color]="tag.color + '33'">
+                            {{tag.name}}
+                        </mat-chip-option>
+                    </mat-chip-listbox>
+                </div>
             </div>
         </mat-card-content>
         <mat-card-actions>

@@ -49,4 +49,8 @@ export type DownloadRequest = {
      * If using youtube-dl archive, download will ignore it
      */
     ignoreArchive?: boolean;
+    /**
+     * Tag UIDs to apply to the downloaded file
+     */
+    tags?: string[];
 };

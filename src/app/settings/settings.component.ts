@@ -11,8 +11,9 @@ import { ConfirmDialogComponent } from 'app/dialogs/confirm-dialog/confirm-dialo
 import { moveItemInArray, CdkDragDrop } from '@angular/cdk/drag-drop';
 import { InputDialogComponent } from 'app/input-dialog/input-dialog.component';
 import { EditCategoryDialogComponent } from 'app/dialogs/edit-category-dialog/edit-category-dialog.component';
+import { EditTagDialogComponent } from 'app/dialogs/edit-tag-dialog/edit-tag-dialog.component';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Category, DBInfoResponse } from 'api-types';
+import { Category, DBInfoResponse, Tag } from 'api-types';
 import { GenerateRssUrlComponent } from 'app/dialogs/generate-rss-url/generate-rss-url.component';
 
 @Component({
@@ -351,6 +352,67 @@ export class SettingsComponent implements OnInit {
     this.dialog.open(GenerateRssUrlComponent, {
       width: '80vw',
       maxWidth: '880px'
+    });
+  }
+
+  // Tag management
+
+  openAddTagDialog(): void {
+    const done = new EventEmitter<any>();
+    const dialogRef = this.dialog.open(InputDialogComponent, {
+      width: '300px',
+      data: {
+        inputTitle: 'Name the tag',
+        inputPlaceholder: 'Name',
+        submitText: 'Add',
+        doneEmitter: done
+      }
+    });
+
+    done.subscribe(name => {
+      if (name) {
+        this.postsService.createTag(name).subscribe(res => {
+          if (res['success']) {
+            this.postsService.loadTags();
+            dialogRef.close();
+            const new_tag = res['new_tag'];
+            this.openEditTagDialog(new_tag);
+          }
+        });
+      }
+    });
+  }
+
+  openEditTagDialog(tag: Tag): void {
+    const dialogRef = this.dialog.open(EditTagDialogComponent, {
+      width: '500px',
+      data: { tag: tag }
+    });
+    dialogRef.afterClosed().subscribe(() => {
+      this.postsService.loadTags();
+    });
+  }
+
+  deleteTag(tag: Tag): void {
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        dialogTitle: $localize`Delete tag`,
+        dialogText: $localize`Would you like to delete "${tag.name}"? This will remove the tag from all files.`,
+        submitText: $localize`Delete`,
+        warnSubmitColor: true
+      }
+    });
+    dialogRef.afterClosed().subscribe(confirmed => {
+      if (confirmed) {
+        this.postsService.deleteTag(tag.uid).subscribe(res => {
+          if (res['success']) {
+            this.postsService.openSnackBar($localize`Successfully deleted tag "${tag.name}"!`);
+            this.postsService.loadTags();
+          }
+        }, () => {
+          this.postsService.openSnackBar($localize`Failed to delete tag!`);
+        });
+      }
     });
   }
 }

@@ -184,41 +184,36 @@
             <div *ngIf="new_config" class="container-fluid">
                 <div class="row">
                     <div class="col-12 mt-3">
-                        <h6 i18n="Export settings">Export to Folder</h6>
-                        <mat-checkbox color="accent" [(ngModel)]="new_config['Export']['enable_export_folder']"><ng-container i18n="Enable export folder setting">Enable export to dedicated folder</ng-container></mat-checkbox>
+                        <h6 i18n="Tags and export settings">Tags &amp; Export</h6>
                     </div>
                     <div class="col-12 mt-2">
                         <mat-form-field class="text-field" color="accent">
-                            <mat-label i18n="Export folder path">Export folder path</mat-label>
-                            <input [disabled]="!new_config['Export']['enable_export_folder']" [(ngModel)]="new_config['Export']['export_folder_path']" matInput>
-                            <mat-hint><ng-container i18n="Export folder path hint">Base path for exported files. Relative to YTDL-Material's root folder.</ng-container></mat-hint>
+                            <mat-label i18n="Export base path">Export base path</mat-label>
+                            <input [(ngModel)]="new_config['Export']['export_base_path']" matInput>
+                            <mat-hint><ng-container i18n="Export base path hint">Base path for all exports. Tag export paths are relative to this.</ng-container></mat-hint>
                         </mat-form-field>
                     </div>
                     <div class="col-12 mt-3">
-                        <mat-form-field class="text-field" color="accent">
-                            <mat-label><ng-container i18n="Export folder naming label">Folder naming convention</ng-container></mat-label>
-                            <mat-select [disabled]="!new_config['Export']['enable_export_folder']" [(ngModel)]="new_config['Export']['export_folder_naming']">
-                                <mat-option value="original"><ng-container i18n="Original folder naming">Original (Video Title)</ng-container></mat-option>
-                                <mat-option value="underscored"><ng-container i18n="Underscored folder naming">Underscored (Video_Title)</ng-container></mat-option>
-                                <mat-option value="snake_case"><ng-container i18n="Snake case folder naming">Snake Case (video_title)</ng-container></mat-option>
-                                <mat-option value="kebab_case"><ng-container i18n="Kebab case folder naming">Kebab Case (video-title)</ng-container></mat-option>
-                                <mat-option value="custom"><ng-container i18n="Custom folder naming">Custom Template</ng-container></mat-option>
-                            </mat-select>
-                            <mat-hint><ng-container i18n="Folder naming hint">How the export folder should be named based on video title.</ng-container></mat-hint>
-                        </mat-form-field>
-                    </div>
-                    <div class="col-12 mt-3" *ngIf="new_config['Export']['export_folder_naming'] === 'custom'">
-                        <mat-form-field class="text-field" color="accent">
-                            <mat-label>Custom folder template</mat-label>
-                            <input [disabled]="!new_config['Export']['enable_export_folder']" [(ngModel)]="new_config['Export']['custom_export_folder_template']" matInput placeholder="&#123;uploader&#125; - &#123;title&#125;">
-                            <mat-hint>Use placeholders: &#123;title&#125;, &#123;uploader&#125;, &#123;channel&#125;, &#123;upload_date&#125;, &#123;id&#125;, &#123;extractor&#125;</mat-hint>
-                        </mat-form-field>
-                    </div>
-                    <div class="col-12 mt-2">
-                        <mat-checkbox color="accent" [disabled]="!new_config['Export']['enable_export_folder']" [(ngModel)]="new_config['Export']['export_include_nfo']"><ng-container i18n="Include NFO file setting">Include NFO file in export</ng-container></mat-checkbox>
-                    </div>
-                    <div class="col-12 mt-2 mb-3">
-                        <mat-checkbox color="accent" [disabled]="!new_config['Export']['enable_export_folder']" [(ngModel)]="new_config['Export']['export_use_simple_filenames']" matTooltip="Use 'video.mp4' and 'video.nfo' instead of original filenames for shorter total paths" i18n-matTooltip="Use simple filenames tooltip"><ng-container i18n="Use simple filenames setting">Use simple filenames (video.mp4, video.nfo)</ng-container></mat-checkbox>
+                        <h6 i18n="Tags heading">Tags</h6>
+                        <mat-list>
+                            <mat-list-item *ngFor="let tag of postsService.tags">
+                                <div style="display: flex; align-items: center; width: 100%; justify-content: space-between;">
+                                    <div style="display: flex; align-items: center;">
+                                        <div [style.background]="tag.color" style="width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;"></div>
+                                        <span>{{tag.name}}</span>
+                                        <mat-icon *ngIf="tag.export_enabled" style="margin-left: 8px; font-size: 16px; color: #4caf50;" matTooltip="Auto-export enabled" i18n-matTooltip>cloud_upload</mat-icon>
+                                    </div>
+                                    <div>
+                                        <button mat-icon-button (click)="openEditTagDialog(tag)"><mat-icon>edit</mat-icon></button>
+                                        <button mat-icon-button color="warn" (click)="deleteTag(tag)"><mat-icon>delete</mat-icon></button>
+                                    </div>
+                                </div>
+                            </mat-list-item>
+                        </mat-list>
+                        <button mat-stroked-button color="accent" (click)="openAddTagDialog()" style="margin-top: 8px;">
+                            <mat-icon>add</mat-icon>
+                            <ng-container i18n="Add tag button">Add Tag</ng-container>
+                        </button>
                     </div>
                 </div>
             </div>

@@ -263,29 +263,9 @@ exports.CONFIG_ITEMS = {
     },
 
     // Export
-    'ytdl_enable_export_folder': {
-        'key': 'ytdl_enable_export_folder',
-        'path': 'YoutubeDLMaterial.Export.enable_export_folder'
-    },
-    'ytdl_export_folder_path': {
-        'key': 'ytdl_export_folder_path',
-        'path': 'YoutubeDLMaterial.Export.export_folder_path'
-    },
-    'ytdl_export_folder_naming': {
-        'key': 'ytdl_export_folder_naming',
-        'path': 'YoutubeDLMaterial.Export.export_folder_naming'
-    },
-    'ytdl_export_include_nfo': {
-        'key': 'ytdl_export_include_nfo',
-        'path': 'YoutubeDLMaterial.Export.export_include_nfo'
-    },
-    'ytdl_custom_export_folder_template': {
-        'key': 'ytdl_custom_export_folder_template',
-        'path': 'YoutubeDLMaterial.Export.custom_export_folder_template'
-    },
-    'ytdl_export_use_simple_filenames': {
-        'key': 'ytdl_export_use_simple_filenames',
-        'path': 'YoutubeDLMaterial.Export.export_use_simple_filenames'
+    'ytdl_export_base_path': {
+        'key': 'ytdl_export_base_path',
+        'path': 'YoutubeDLMaterial.Export.export_base_path'
     }
 };
 

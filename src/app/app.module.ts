@@ -97,6 +97,7 @@ import { SortPropertyComponent } from './components/sort-property/sort-property.
 import { OnlyNumberDirective } from './directives/only-number.directive';
 import { ArchiveViewerComponent } from './components/archive-viewer/archive-viewer.component';
 import { CustomExportDialogComponent } from './dialogs/custom-export-dialog/custom-export-dialog.component';
+import { EditTagDialogComponent } from './dialogs/edit-tag-dialog/edit-tag-dialog.component';
 
 registerLocaleData(es, 'es');
 
@@ -150,7 +151,8 @@ registerLocaleData(es, 'es');
         SortPropertyComponent,
         OnlyNumberDirective,
         ArchiveViewerComponent,
-        CustomExportDialogComponent
+        CustomExportDialogComponent,
+        EditTagDialogComponent
     ],
     imports: [
         CommonModule,

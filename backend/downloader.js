@@ -389,15 +389,30 @@ exports.downloadQueuedFile = async(download_uid, customDownloadHandler = null) =
                     exports.generateNFOFile(output_json, `${filepath_no_extension}.nfo`);
                 }
 
-                // Export to dedicated folder if enabled
-                await exports.exportToFolder(full_file_path, output_json, type);
-
                 if (options.cropFileSettings) {
                     await utils.cropFile(full_file_path, options.cropFileSettings.cropFileStart, options.cropFileSettings.cropFileEnd, ext);
                 }
 
                 // registers file in DB
                 const file_obj = await files_api.registerFileDB(full_file_path, type, download['user_uid'], category, download['sub_id'] ? download['sub_id'] : null, options.cropFileSettings);
+
+                // Tag-based auto-export
+                const download_tags = options.tags || [];
+                if (download_tags.length > 0) {
+                    await db_api.updateRecord('files', {uid: file_obj.uid}, {tags: download_tags});
+                    const all_tags = await db_api.getRecords('tags');
+                    let was_exported = false;
+                    for (const tag_uid of download_tags) {
+                        const tag = all_tags.find(t => t.uid === tag_uid);
+                        if (tag && tag.export_enabled && tag.export_folder_path) {
+                            const result = await exports.exportToFolderByTag(full_file_path, output_json, type, tag);
+                            if (result) was_exported = true;
+                        }
+                    }
+                    if (was_exported) {
+                        await db_api.updateRecord('files', {uid: file_obj.uid}, {exported: true});
+                    }
+                }
 
                 await archive_api.addToArchive(output_json['extractor'], output_json['id'], type, output_json['title'], download['user_uid'], download['sub_id']);
 
@@ -666,24 +681,25 @@ exports.generateNFOFile = (info, output_path) => {
 }
 
 /**
- * Exports a downloaded video to a dedicated folder with configurable naming
+ * Exports a downloaded video to a folder based on tag export settings
  * @param {string} video_file_path - Full path to the downloaded video file
  * @param {object} info - Video metadata from youtube-dl/yt-dlp
  * @param {string} type - 'audio' or 'video'
- * @returns {Promise<object|null>} - Export info object or null if export is disabled
+ * @param {object} tag - Tag object with export settings
+ * @returns {Promise<object|null>} - Export info object or null on failure
  */
-exports.exportToFolder = async (video_file_path, info, type) => {
-    const enableExport = config_api.getConfigItem('ytdl_enable_export_folder');
-    if (!enableExport) {
-        return null;
-    }
-
+exports.exportToFolderByTag = async (video_file_path, info, type, tag) => {
     try {
-        const exportBasePath = config_api.getConfigItem('ytdl_export_folder_path');
-        const namingConvention = config_api.getConfigItem('ytdl_export_folder_naming');
-        const includeNfo = config_api.getConfigItem('ytdl_export_include_nfo');
-        const customTemplate = config_api.getConfigItem('ytdl_custom_export_folder_template');
-        const useSimpleFilenames = config_api.getConfigItem('ytdl_export_use_simple_filenames');
+        const globalBasePath = config_api.getConfigItem('ytdl_export_base_path');
+        if (!globalBasePath) {
+            logger.error('Export base path is not configured');
+            return null;
+        }
+
+        const namingConvention = tag.export_folder_naming || 'original';
+        const includeNfo = tag.export_include_nfo !== false;
+        const customTemplate = tag.custom_export_folder_template || '';
+        const useSimpleFilenames = tag.export_use_simple_filenames || false;
 
         // Build Jellyfin-compatible base name: "Title (YYYY)"
         const videoTitle = info['title'] || info['fulltitle'] || 'untitled';
@@ -701,7 +717,7 @@ exports.exportToFolder = async (video_file_path, info, type) => {
         // Get the video file extension
         const videoExt = path.extname(video_file_path);
 
-        // Determine filenames - Jellyfin requires folder name = file name (without ext)
+        // Determine filenames
         let mediaFileName, nfoFileName, thumbnailFileName;
         if (useSimpleFilenames) {
             const simplifiedNames = utils.getSimplifiedFilenames(type);
@@ -709,53 +725,51 @@ exports.exportToFolder = async (video_file_path, info, type) => {
             nfoFileName = simplifiedNames.nfoFile;
             thumbnailFileName = simplifiedNames.thumbnailFile;
         } else {
-            // Jellyfin: file base name must match folder name
             mediaFileName = `${folderName}${videoExt}`;
             nfoFileName = `${folderName}.nfo`;
             thumbnailFileName = 'cover.jpg';
         }
 
-        // Validate and adjust path length for cross-platform compatibility
+        // Build export path: globalBasePath / tag.export_folder_path / folderName
+        const exportBasePath = path.join(globalBasePath, tag.export_folder_path);
+
+        // Validate and adjust path length
         const pathValidation = utils.validatePathLength(exportBasePath, folderName, mediaFileName);
         if (pathValidation.warnings.length > 0) {
             for (const warning of pathValidation.warnings) {
-                logger.warn(`Export path adjustment: ${warning}`);
+                logger.warn(`Export path adjustment [tag: ${tag.name}]: ${warning}`);
             }
             folderName = pathValidation.folderName;
             mediaFileName = pathValidation.fileName;
-            // Update NFO name if media filename changed
             if (!useSimpleFilenames) {
                 const adjustedNameNoExt = utils.removeFileExtension(mediaFileName);
                 nfoFileName = `${adjustedNameNoExt}.nfo`;
             }
         }
 
-        // Create the export folder path
         const exportFolderPath = path.join(exportBasePath, folderName);
-
-        // Ensure the export folder exists
         await fs.ensureDir(exportFolderPath);
 
-        // Copy the video file
+        // Copy the media file
         const exportedVideoPath = path.join(exportFolderPath, mediaFileName);
         await fs.copy(video_file_path, exportedVideoPath);
-        logger.info(`Exported video to: ${exportedVideoPath}`);
+        logger.info(`Exported [tag: ${tag.name}] video to: ${exportedVideoPath}`);
 
         // Generate and export NFO file if enabled
         let exportedNfoPath = null;
         if (includeNfo) {
             exportedNfoPath = path.join(exportFolderPath, nfoFileName);
             exports.generateNFOFile(info, exportedNfoPath);
-            logger.info(`Exported NFO to: ${exportedNfoPath}`);
+            logger.info(`Exported [tag: ${tag.name}] NFO to: ${exportedNfoPath}`);
         }
 
-        // Copy thumbnail as cover.jpg (Jellyfin standard)
+        // Copy thumbnail
         const thumbnailPath = utils.getDownloadedThumbnail(video_file_path);
         let exportedThumbnailPath = null;
         if (thumbnailPath) {
             exportedThumbnailPath = path.join(exportFolderPath, thumbnailFileName);
             await fs.copy(thumbnailPath, exportedThumbnailPath);
-            logger.info(`Exported thumbnail to: ${exportedThumbnailPath}`);
+            logger.info(`Exported [tag: ${tag.name}] thumbnail to: ${exportedThumbnailPath}`);
         }
 
         return {
@@ -765,7 +779,7 @@ exports.exportToFolder = async (video_file_path, info, type) => {
             thumbnailPath: exportedThumbnailPath
         };
     } catch (err) {
-        logger.error(`Failed to export video to folder: ${err.message}`);
+        logger.error(`Failed to export video [tag: ${tag.name}]: ${err.message}`);
         logger.error(err.stack);
         return null;
     }
@@ -785,9 +799,9 @@ exports.exportToFolder = async (video_file_path, info, type) => {
  */
 exports.exportFileToFolder = async (file, targetFolder, options = {}) => {
     try {
-        const exportBasePath = config_api.getConfigItem('ytdl_export_folder_path');
+        const exportBasePath = config_api.getConfigItem('ytdl_export_base_path');
         if (!exportBasePath) {
-            logger.error('Export folder path is not configured');
+            logger.error('Export base path is not configured');
             return null;
         }
 

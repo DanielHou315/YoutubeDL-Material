@@ -42,4 +42,6 @@ export type DatabaseFile = {
      */
     abr?: number;
     favorite: boolean;
+    tags?: string[];
+    exported?: boolean;
 };

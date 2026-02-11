@@ -1,0 +1,74 @@
+<h4 mat-dialog-title><ng-container i18n="Editing tag dialog title">Editing tag</ng-container>&nbsp;{{tag.name}}</h4>
+
+<mat-dialog-content style="max-height: 60vh">
+    <mat-form-field style="width: 100%; margin-bottom: 5px;">
+        <mat-label i18n="Tag name">Name</mat-label>
+        <input matInput [(ngModel)]="tag.name" required>
+    </mat-form-field>
+
+    <div style="margin-bottom: 16px;">
+        <label style="display: block; margin-bottom: 4px; font-size: 12px; color: rgba(0,0,0,0.6);" i18n="Tag color label">Color</label>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <div *ngFor="let color of colorOptions"
+                 (click)="tag.color = color"
+                 [style.background]="color"
+                 [style.outline]="tag.color === color ? '2px solid black' : 'none'"
+                 style="width: 28px; height: 28px; border-radius: 50%; cursor: pointer; outline-offset: 2px;">
+            </div>
+        </div>
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <h6 style="margin-top: 16px;" i18n="Export settings heading">Export Settings</h6>
+
+    <mat-checkbox color="accent" [(ngModel)]="tag.export_enabled">
+        <ng-container i18n="Enable auto-export">Enable auto-export for this tag</ng-container>
+    </mat-checkbox>
+
+    <div *ngIf="tag.export_enabled" style="margin-top: 12px;">
+        <mat-form-field style="width: 100%;">
+            <mat-label i18n="Export folder path">Export folder path (relative to base)</mat-label>
+            <input matInput [(ngModel)]="tag.export_folder_path" placeholder="movies/">
+            <mat-hint><ng-container i18n="Tag export path hint">Relative to the global export base path</ng-container></mat-hint>
+        </mat-form-field>
+
+        <mat-form-field style="width: 100%; margin-top: 12px;">
+            <mat-label i18n="Folder naming convention">Folder naming convention</mat-label>
+            <mat-select [(ngModel)]="tag.export_folder_naming">
+                <mat-option value="original"><ng-container i18n="Original naming">Original (Video Title)</ng-container></mat-option>
+                <mat-option value="underscored"><ng-container i18n="Underscored naming">Underscored (Video_Title)</ng-container></mat-option>
+                <mat-option value="snake_case"><ng-container i18n="Snake case naming">Snake Case (video_title)</ng-container></mat-option>
+                <mat-option value="kebab_case"><ng-container i18n="Kebab case naming">Kebab Case (video-title)</ng-container></mat-option>
+                <mat-option value="custom"><ng-container i18n="Custom naming">Custom Template</ng-container></mat-option>
+            </mat-select>
+        </mat-form-field>
+
+        <mat-form-field *ngIf="tag.export_folder_naming === 'custom'" style="width: 100%; margin-top: 12px;">
+            <mat-label>Custom folder template</mat-label>
+            <input matInput [(ngModel)]="tag.custom_export_folder_template" placeholder="&#123;uploader&#125; - &#123;title&#125;">
+            <mat-hint>Use placeholders: &#123;title&#125;, &#123;uploader&#125;, &#123;channel&#125;, &#123;upload_date&#125;, &#123;id&#125;, &#123;extractor&#125;</mat-hint>
+        </mat-form-field>
+
+        <div style="margin-top: 12px;">
+            <mat-checkbox color="accent" [(ngModel)]="tag.export_include_nfo">
+                <ng-container i18n="Include NFO">Include NFO file</ng-container>
+            </mat-checkbox>
+        </div>
+
+        <div style="margin-top: 8px;">
+            <mat-checkbox color="accent" [(ngModel)]="tag.export_use_simple_filenames"
+                          matTooltip="Use 'video.mp4' and 'video.nfo' instead of original filenames" i18n-matTooltip>
+                <ng-container i18n="Simple filenames">Use simple filenames</ng-container>
+            </mat-checkbox>
+        </div>
+    </div>
+</mat-dialog-content>
+
+<mat-dialog-actions>
+    <button mat-button mat-dialog-close><ng-container i18n="Cancel">Cancel</ng-container></button>
+    <button mat-button [disabled]="tagChanged()" type="submit" (click)="saveClicked()"><ng-container i18n="Save button">Save</ng-container></button>
+    <div class="mat-spinner" *ngIf="updating">
+        <mat-spinner [diameter]="25"></mat-spinner>
+    </div>
+</mat-dialog-actions>

@@ -210,6 +210,18 @@ async function checkMigrations() {
         db.set('archives_migration_complete', true).write();
     }
 
+    // Migrate old export config to new export_base_path
+    const export_migration_complete = db.get('export_base_path_migration_complete').value();
+    if (!export_migration_complete) {
+        const config_json = config_api.getConfigFile();
+        const exportSection = config_json && config_json['YoutubeDLMaterial'] && config_json['YoutubeDLMaterial']['Export'];
+        if (exportSection && exportSection['export_folder_path'] && !exportSection['export_base_path']) {
+            logger.info('Migrating export_folder_path to export_base_path...');
+            config_api.setConfigItem('ytdl_export_base_path', exportSection['export_folder_path']);
+        }
+        db.set('export_base_path_migration_complete', true).write();
+    }
+
     return true;
 }
 
@@ -733,7 +745,8 @@ app.post('/api/downloadFile', optionalJwt, async function(req, res) {
         youtubePassword: req.body.youtubePassword,
         ui_uid: req.body.ui_uid,
         cropFileSettings: req.body.cropFileSettings,
-        ignoreArchive: req.body.ignoreArchive
+        ignoreArchive: req.body.ignoreArchive,
+        tags: req.body.tags || []
     };
 
     const download = await downloader_api.createDownload(url, type, options, user_uid);
@@ -844,9 +857,10 @@ app.post('/api/getAllFiles', optionalJwt, async function (req, res) {
     const file_type_filter = req.body.file_type_filter;
     const favorite_filter = req.body.favorite_filter;
     const sub_id = req.body.sub_id;
+    const tag_filter = req.body.tag_filter;
     const uuid = req.isAuthenticated() ? req.user.uid : null;
 
-    const {files, file_count} = await files_api.getAllFiles(sort, range, text_search, file_type_filter, favorite_filter, sub_id, uuid);
+    const {files, file_count} = await files_api.getAllFiles(sort, range, text_search, file_type_filter, favorite_filter, sub_id, uuid, tag_filter);
 
     res.send({
         files: files,
@@ -1068,6 +1082,59 @@ app.post('/api/updateCategories', optionalJwt, async (req, res) => {
     const categories = req.body.categories;
     await db_api.removeAllRecords('categories');
     await db_api.insertRecordsIntoTable('categories', categories);
+    res.send({success: true});
+});
+
+// tags
+
+app.post('/api/getAllTags', optionalJwt, async (req, res) => {
+    const tags = await db_api.getRecords('tags');
+    res.send({tags: tags});
+});
+
+app.post('/api/createTag', optionalJwt, async (req, res) => {
+    const name = req.body.name;
+    const new_tag = {
+        name: name,
+        uid: uuid(),
+        color: req.body.color || '#2196F3',
+        export_enabled: false,
+        export_folder_path: '',
+        export_folder_naming: 'original',
+        export_include_nfo: true,
+        export_use_simple_filenames: false,
+        custom_export_folder_template: '',
+        created: Date.now()
+    };
+
+    await db_api.insertRecordIntoTable('tags', new_tag);
+
+    res.send({
+        new_tag: new_tag,
+        success: !!new_tag
+    });
+});
+
+app.post('/api/updateTag', optionalJwt, async (req, res) => {
+    const tag = req.body.tag;
+    await db_api.updateRecord('tags', {uid: tag.uid}, tag);
+    res.send({success: true});
+});
+
+app.post('/api/deleteTag', optionalJwt, async (req, res) => {
+    const tag_uid = req.body.tag_uid;
+
+    await db_api.removeRecord('tags', {uid: tag_uid});
+
+    // Remove tag from all files that have it
+    const all_files = await db_api.getRecords('files');
+    for (const file of all_files) {
+        if (file.tags && file.tags.includes(tag_uid)) {
+            const new_tags = file.tags.filter(t => t !== tag_uid);
+            await db_api.updateRecord('files', {uid: file.uid}, {tags: new_tags});
+        }
+    }
+
     res.send({success: true});
 });
 
@@ -1712,16 +1779,10 @@ app.post('/api/cancelDownload', optionalJwt, async (req, res) => {
 // export folder management
 
 app.get('/api/getExportFolders', optionalJwt, async (req, res) => {
-    const exportBasePath = config_api.getConfigItem('ytdl_export_folder_path');
-    const enableExport = config_api.getConfigItem('ytdl_enable_export_folder');
-
-    if (!enableExport) {
-        res.send({success: false, error: 'Export feature is disabled', folders: []});
-        return;
-    }
+    const exportBasePath = config_api.getConfigItem('ytdl_export_base_path');
 
     if (!exportBasePath) {
-        res.send({success: false, error: 'Export folder path is not configured', folders: []});
+        res.send({success: false, error: 'Export base path is not configured', folders: []});
         return;
     }
 
@@ -1742,12 +1803,6 @@ app.post('/api/exportFile', optionalJwt, async (req, res) => {
     const targetFolder = req.body.targetFolder || '';
     const options = req.body.options || {};
 
-    const enableExport = config_api.getConfigItem('ytdl_enable_export_folder');
-    if (!enableExport) {
-        res.send({success: false, error: 'Export feature is disabled'});
-        return;
-    }
-
     // Get the file from the database
     const file = await db_api.getRecord('files', {uid: file_uid});
     if (!file) {
@@ -1756,6 +1811,9 @@ app.post('/api/exportFile', optionalJwt, async (req, res) => {
     }
 
     const result = await downloader_api.exportFileToFolder(file, targetFolder, options);
+    if (result && result.success !== false) {
+        await db_api.updateRecord('files', {uid: file_uid}, {exported: true});
+    }
     res.send(result || {success: false, error: 'Export failed'});
 });
 

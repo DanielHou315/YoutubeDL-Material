@@ -38,6 +38,7 @@ export class MainComponent implements OnInit {
   cropFile = false;
   cropFileStart = null;
   cropFileEnd = null;
+  selectedTags: string[] = [];
   urlError = false;
   path: string | string[] = '';
   url = '';
@@ -377,7 +378,7 @@ export class MainComponent implements OnInit {
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i];
       this.postsService.downloadFile(url, type as FileType, (customQualityConfiguration || selected_quality === '' || typeof selected_quality !== 'string' ? null : selected_quality),
-        customQualityConfiguration, customArgs, additionalArgs, customOutput, youtubeUsername, youtubePassword, cropFileSettings).subscribe(res => {
+        customQualityConfiguration, customArgs, additionalArgs, customOutput, youtubeUsername, youtubePassword, cropFileSettings, this.selectedTags).subscribe(res => {
           this.current_download = res['download'];
           this.downloads.push(res['download']);
           this.download_uids.push(res['download']['uid']);

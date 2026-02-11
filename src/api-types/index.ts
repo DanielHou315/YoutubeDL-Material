@@ -103,6 +103,7 @@ export type { SubscribeResponse } from './models/SubscribeResponse';
 export type { Subscription } from './models/Subscription';
 export type { SubscriptionRequestData } from './models/SubscriptionRequestData';
 export type { SuccessObject } from './models/SuccessObject';
+export type { Tag } from './models/Tag';
 export type { TableInfo } from './models/TableInfo';
 export type { Task } from './models/Task';
 export { TaskType } from './models/TaskType';

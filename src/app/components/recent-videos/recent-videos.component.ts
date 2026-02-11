@@ -110,6 +110,11 @@ export class RecentVideosComponent implements OnInit {
       delete this.fileFilters['video_only'];
     }
 
+    // Add tag filters dynamically
+    for (const tag of this.postsService.tags) {
+      this.fileFilters[`tag_${tag.uid}`] = { key: `tag_${tag.uid}`, label: tag.name };
+    }
+
     if (this.postsService.initialized) {
       this.getAllFiles();
       this.getAllPlaylists();
@@ -206,6 +211,11 @@ export class RecentVideosComponent implements OnInit {
     return this.selectedFilters.includes('favorited');
   }
 
+  getTagFilter(): string {
+    const tagFilter = this.selectedFilters.find(f => f.startsWith('tag_'));
+    return tagFilter ? tagFilter.replace('tag_', '') : null;
+  }
+
 
   // get files
 
@@ -216,7 +226,8 @@ export class RecentVideosComponent implements OnInit {
     const range = [current_file_index, current_file_index + this.pageSize];
     const fileTypeFilter = this.getFileTypeFilter();
     const favoriteFilter = this.getFavoriteFilter();
-    this.postsService.getAllFiles(sort, this.usePaginator ? range : null, this.search_mode ? this.search_text : null, fileTypeFilter as FileTypeFilter, favoriteFilter, this.sub_id).subscribe(res => {
+    const tagFilter = this.getTagFilter();
+    this.postsService.getAllFiles(sort, this.usePaginator ? range : null, this.search_mode ? this.search_text : null, fileTypeFilter as FileTypeFilter, favoriteFilter, this.sub_id, tagFilter).subscribe(res => {
       this.file_count = res['file_count'];
       this.paged_data = res['files'];
       for (let i = 0; i < this.paged_data.length; i++) {
